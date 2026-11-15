@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block body %}
+<h1>Verifikasi &amp; Rekap</h1><p class="sub">Tinjau laporan, perbaiki, lalu verifikasi. Hanya data terverifikasi masuk rekap dan ringkasan.</p>
+<p><a class="btn {{ '' if not st else 'sec' }}" href="/verifikasi">Semua ({{c.total or 0}})</a> <a class="btn {{ '' if st=='menunggu' else 'sec' }}" href="/verifikasi?status=menunggu">Menunggu ({{c.menunggu or 0}})</a> <a class="btn {{ '' if st=='terverifikasi' else 'sec' }}" href="/verifikasi?status=terverifikasi">Terverifikasi ({{c.terverifikasi or 0}})</a></p>
+<div class="card"><table><tr><th>ID</th><th>Pemilik</th><th>Lokasi</th><th>AI</th><th>Final</th><th>Rule-Based</th><th>Status</th></tr>
+{% for r in rows %}<tr><td><a href="/laporan/{{r.id}}">{{r.id}}</a></td><td>{{r.nama}}</td><td>{{r.nagari}}, {{r.kecamatan}}</td><td>{{ (r.kerusakan_ai|kat) if r.kerusakan_ai else '-' }}</td><td>{{ (r.kerusakan_final|kat) if r.kerusakan_final else '-' }}</td>
+<td><span class="pill p-{{r.rules_status}}">{{r.rules_status}}</span> {{ r.issues|length or '' }}</td><td><span class="pill p-{{r.status}}">{{r.status}}</span></td></tr>
+{% else %}<tr><td colspan="7">Belum ada data.</td></tr>{% endfor %}</table></div>
+{% endblock %}

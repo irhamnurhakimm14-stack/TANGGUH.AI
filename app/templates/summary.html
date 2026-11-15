@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block body %}
+<h1>Ringkasan Situasi Bencana</h1><p class="sub">Disusun LLM hanya dari data <b>terverifikasi</b> — {{ kab }}.</p>
+<div class="grid3"><div class="card stat"><b>{{ facts.total_terverifikasi }}</b><span>Rumah terverifikasi</span></div>
+<div class="card stat"><b>{{ facts.per_kategori.berat }} / {{ facts.per_kategori.sedang }} / {{ facts.per_kategori.ringan }}</b><span>Berat / Sedang / Ringan</span></div>
+<div class="card stat"><b>{{ facts.per_kategori.hanyut }}</b><span>Hanyut / Hilang</span></div></div>
+<form method="post"><button class="btn">Susun ringkasan</button></form>
+{% if result %}<div class="card" style="margin-top:16px"><span class="pill {{ 'p-lolos' if result.source=='gemini' else 'p-menunggu' }}">sumber: {{ result.source }}</span> <small>{{ result.note }}</small>
+<pre class="sum">{{ result.text }}</pre><div class="disc">Angka berasal dari database. Tinjau sebelum dipakai sebagai laporan resmi.</div></div>{% endif %}
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% block body %}
+<h1>Beranda</h1><p class="sub">Selamat datang di pusat pendataan kerusakan pascabencana.</p>
+<div class="card" style="background:#e9f6f3"><h2 style="margin-top:0">Selamat datang di TANGGUH.AI</h2>
+<p>Catat kerusakan pascabanjir/galodo. Rule-Based memeriksa data, AI menyarankan kategori, manusia menentukan keputusan.</p>
+<a class="btn" href="/laporan/baru">+ Buat Laporan Kerusakan</a> <a class="btn sec" href="/verifikasi">Lihat Rekap →</a></div>
+<div class="grid3"><div class="card stat"><b>{{ c.total or 0 }}</b><span>Total laporan</span></div>
+<div class="card stat"><b>{{ c.menunggu or 0 }}</b><span>Menunggu verifikasi</span></div>
+<div class="card stat"><b>{{ c.terverifikasi or 0 }}</b><span>Terverifikasi</span></div></div>
+<div class="card"><h3 style="margin-top:0">Cara kerja</h3><div class="grid3" style="grid-template-columns:repeat(4,1fr)">
+<div><b>01</b><br>Asesmen di lokasi</div><div><b>02</b><br>Isi laporan &amp; foto</div><div><b>03</b><br>Rule-Based + AI menyarankan</div><div><b>04</b><br>Admin verifikasi</div></div>
+<p class="sub" style="margin-top:12px">Model CNN: {% if ai_ready %}<span class="pill p-lolos">aktif</span>{% else %}<span class="pill p-menunggu">belum dipasang (mode demo)</span>{% endif %}</p></div>
+<div class="card"><h3 style="margin-top:0">Laporan terbaru</h3>
+{% for r in latest %}<p><a href="/laporan/{{r.id}}"><b>{{ r.id }}</b></a> · {{ r.nagari }}, {{ r.kecamatan }} <span class="pill p-{{r.status}}">{{ r.status }}</span></p>{% else %}<p class="sub">Belum ada laporan.</p>{% endfor %}</div>
+{% endblock %}

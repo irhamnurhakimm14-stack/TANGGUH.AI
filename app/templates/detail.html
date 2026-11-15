@@ -1,0 +1,19 @@
+{% extends "base.html" %}{% block body %}
+<h1>Laporan {{ r.id }}</h1><p class="sub">{{ r.created_at }} · <span class="pill p-{{r.status}}">{{ r.status }}</span> <span class="pill p-{{r.rules_status}}">Rule-Based: {{ r.rules_status }}</span></p>
+<div class="grid2"><div>
+<div class="card"><h3 style="margin-top:0">Data laporan</h3><table>
+{% for k,l in [('nama','Nama'),('nik','NIK'),('no_kk','No. KK'),('kecamatan','Kecamatan'),('nagari','Nagari'),('jorong','Jorong'),('koordinat','Koordinat'),('deskripsi','Deskripsi')] %}<tr><th>{{l}}</th><td>{{ r[k] or '-' }}</td></tr>{% endfor %}</table></div>
+<div class="card"><h3 style="margin-top:0">Hasil pemeriksaan Rule-Based</h3>
+{% for i in r.issues %}<div class="iss {{i.level}}"><b>{{ i.code }}</b> — {{ i.message }}{% if i.ref_id %} <a href="/laporan/{{i.ref_id}}">lihat {{i.ref_id}}</a>{% endif %}</div>{% else %}<div class="iss info" style="background:var(--ok-bg);color:var(--ok)">Tidak ada temuan.</div>{% endfor %}</div></div>
+<div>{% if r.foto %}<div class="card"><img class="thumb" src="/foto/{{ r.foto }}" alt="foto kerusakan"></div>{% endif %}
+<div class="ai"><small>HASIL KLASIFIKASI AI (rekomendasi)</small>
+{% if r.kerusakan_ai %}<div class="big">{{ r.kerusakan_ai|kat }}</div><div class="bar"><i style="width:{{ (r.ai_confidence*100)|round }}%"></i></div><small>Keyakinan {{ (r.ai_confidence*100)|round }}%</small>
+{% else %}<p>Belum ada rekomendasi AI (model belum dipasang atau tidak ada foto). Tentukan manual.</p>{% endif %}</div>
+<form class="card" method="post" action="/laporan/{{ r.id }}/verifikasi" style="margin-top:16px"><h3 style="margin-top:0">Keputusan admin</h3>
+<label>Kategori kerusakan final</label><select name="kerusakan_final"><option value="">- pilih -</option>
+{% for k in ['ringan','sedang','berat','hanyut'] %}<option value="{{k}}" {{ 'selected' if (r.kerusakan_final or r.kerusakan_ai)==k }}>{{ k|kat }}</option>{% endfor %}</select>
+<label>Penanganan</label><select name="penanganan">{% for p in ['','Rehabilitasi','Relokasi'] %}<option {{ 'selected' if r.penanganan==p }}>{{p}}</option>{% endfor %}</select>
+<label>Catatan</label><textarea name="catatan">{{ r.catatan_admin or '' }}</textarea>
+<label>Status</label><select name="status">{% for s in ['menunggu','terverifikasi','ditolak'] %}<option {{ 'selected' if r.status==s }}>{{s}}</option>{% endfor %}</select>
+<p><button class="btn">Simpan keputusan</button></p></form></div></div>
+{% endblock %}

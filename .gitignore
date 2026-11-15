@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+*.sqlite3
+# DATA PRIBADI WARGA (NIK, nama): JANGAN di-commit ke GitHub
+data/raw/*
+!data/raw/.gitkeep
+data/dataset/
+data/*.csv
+!data/rekap_solok_2025.csv
+uploads/*
+!uploads/.gitkeep
+# model besar: simpan di Google Drive / GitHub Release, bukan di repo
+models/*
+!models/.gitkeep

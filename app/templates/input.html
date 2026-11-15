@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% block body %}
+<h1>Input Laporan Kerusakan</h1><p class="sub">Lengkapi data lokasi dan pemilik rumah. Foto hanya menjadi bukti pendukung.</p>
+<div class="grid2"><form class="card" method="post" enctype="multipart/form-data">
+<label>Nama pemilik *</label><input name="nama" value="{{ f.nama }}" required>
+<label>NIK *</label><input name="nik" value="{{ f.nik }}" inputmode="numeric" placeholder="16 digit">
+<label>Nomor KK</label><input name="no_kk" value="{{ f.no_kk }}" inputmode="numeric" placeholder="16 digit">
+<label>Kecamatan *</label><input name="kecamatan" value="{{ f.kecamatan }}">
+<label>Nagari/Kelurahan *</label><input name="nagari" value="{{ f.nagari }}">
+<label>Jorong *</label><input name="jorong" value="{{ f.jorong }}">
+<label>Koordinat GPS</label><input name="koordinat" value="{{ f.koordinat }}" placeholder="0.95393 S 100.62134 E">
+<label>Deskripsi kerusakan *</label><textarea name="deskripsi" placeholder="Jelaskan objek, bagian yang rusak, dan kondisi yang dilihat…">{{ f.deskripsi }}</textarea>
+<label>Foto kerusakan *</label><input type="file" name="foto" accept="image/*">
+<label style="font-weight:400"><input type="checkbox" name="setuju" style="width:auto"> Saya menyetujui data dan foto digunakan untuk pendataan bencana dan memastikan tidak memuat wajah atau identitas korban.</label>
+<p><button class="btn">Kirim &amp; Klasifikasikan</button></p></form>
+<div class="card"><h3 style="margin-top:0">Yang diperiksa otomatis</h3><ul><li>Kelengkapan isian</li><li>Format NIK, KK, dan GPS</li><li>Potensi duplikasi</li><li>Konsistensi kerusakan vs penanganan</li></ul>
+<div class="disc">Laporan terindikasi duplikat <b>tidak dihapus</b>; admin yang memutuskan.</div></div></div>
+{% endblock %}

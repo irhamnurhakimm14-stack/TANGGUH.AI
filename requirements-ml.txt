@@ -1,0 +1,4 @@
+# --- Khusus training / prediksi CNN. Pasang di Google Colab atau laptop yang kuat. ---
+-r requirements.txt
+tensorflow>=2.16
+matplotlib>=3.8

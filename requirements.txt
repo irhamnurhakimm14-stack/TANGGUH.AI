@@ -1,0 +1,12 @@
+# --- Aplikasi web + Rule-Based + LLM (ringan, cukup untuk semua anggota tim) ---
+flask>=3.0
+pandas>=2.0
+openpyxl>=3.1
+xlrd>=2.0          # untuk membaca file .xls (Hasil_Sandingan_Dukcapil)
+pillow>=10.0
+numpy>=1.26
+pdfplumber>=0.11   # ekstrak foto + label dari PDF
+scikit-learn>=1.4  # split data per rumah + evaluasi
+requests>=2.31
+python-dotenv>=1.0
+pytest>=8.0

@@ -8,6 +8,7 @@ import uuid
 from contextlib import contextmanager
 from datetime import datetime
 
+from flask import g, has_request_context
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from . import config, cloud_db
@@ -53,6 +54,14 @@ CREATE TABLE IF NOT EXISTS users (
 
 @contextmanager
 def connect():
+    if config.DEMO_MODE and has_request_context() and getattr(g, 'demo_db', None) is not None:
+        try:
+            yield g.demo_db
+            g.demo_db.commit()
+        except Exception:
+            g.demo_db.rollback()
+            raise
+        return
     if config.CLOUD_DB:
         with cloud_db.connect() as con:
             yield con

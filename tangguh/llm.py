@@ -81,5 +81,9 @@ def summarize(facts,caller=None,oidc_token=None):
             r=requests.post(url,headers={"x-goog-api-key":config.GEMINI_API_KEY},json={"contents":[{"parts":[{"text":prompt}]}],"generationConfig":{"temperature":0,"responseMimeType":"application/json","maxOutputTokens":512}},timeout=15)
             r.raise_for_status(); raw=r.json()["candidates"][0]["content"]["parts"][0]["text"]
         order=_parse_plan(raw,n)
+    except requests.HTTPError as e:
+        status=e.response.status_code if e.response is not None else "unknown"
+        # Report status only; never expose upstream response, auth header, token or prompt.
+        return fail(f"Gemini API HTTP {status}; ringkasan template digunakan.")
     except Exception as e: return fail(f"Rencana Gemini gagal atau tidak valid ({type(e).__name__}); ringkasan template digunakan.")
     return {"text":template_summary(facts,order),"source":"gemini","note":"Gemini menyusun urutan wilayah; fakta dirender dari database. Wajib tinjauan petugas."}

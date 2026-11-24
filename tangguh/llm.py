@@ -64,7 +64,7 @@ def _parse_plan(text,n):
     if any(type(i) is not int for i in order) or sorted(order)!=list(range(n)): raise ValueError("invalid ids")
     return order
 
-def summarize(facts,caller=None):
+def summarize(facts,caller=None,oidc_token=None):
     fallback=template_summary(facts)
     def fail(note): return {"text":fallback,"source":"template","note":note}
     if not facts["total_terverifikasi"]: return fail("Tanpa data terverifikasi.")
@@ -72,7 +72,7 @@ def summarize(facts,caller=None):
     try:
         if caller is not None: raw=caller(prompt)
         elif not config.GEMINI_API_KEY:
-            token=os.getenv("VERCEL_OIDC_TOKEN") if os.getenv("TANGGUH_GATEWAY")=="1" else None
+            token=(oidc_token or os.getenv("VERCEL_OIDC_TOKEN")) if os.getenv("TANGGUH_GATEWAY")=="1" else None
             if not token: return fail("API key belum tersedia; ringkasan template digunakan.")
             r=requests.post("https://ai-gateway.vercel.sh/v1/chat/completions",headers={"Authorization":"Bearer "+token},json={"model":"google/gemini-3.1-flash-lite","messages":[{"role":"user","content":prompt}],"temperature":0,"max_tokens":512,"response_format":{"type":"json_object"}},timeout=15)
             r.raise_for_status(); raw=r.json()["choices"][0]["message"]["content"]

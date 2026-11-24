@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Dashboard Petugas - TANGGUH.AI{% endblock %}
+{% block body %}
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:8px">
+  <div>
+    <h1 style="margin:0 0 4px">Dashboard Petugas Lapangan</h1>
+    <p class="sub" style="margin:0">Pemeriksaan awal data pelaporan kerusakan sebelum diteruskan ke Admin.</p>
+  </div>
+  <div>
+    <a class="btn" href="/laporan/baru">+ Input Laporan</a>
+  </div>
+</div>
+
+<div class="disc" style="margin-top:4px;margin-bottom:14px">
+  <b>Petunjuk Pemeriksaan:</b> Periksa kelengkapan data dan foto lapangan &rarr; Berikan catatan hasil pemeriksaan &rarr; Teruskan ke Admin untuk verifikasi akhir. Status laporan sinkron secara langsung dengan keputusan Admin.
+</div>
+
+<div class="grid3" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
+  <div class="card stat"><b>{{ c.total or 0 }}</b><span>Total Laporan Masuk</span></div>
+  <div class="card stat"><b>{{ c.menunggu_pemeriksaan or 0 }}</b><span>Menunggu Pemeriksaan</span></div>
+  <div class="card stat"><b>{{ c.sedang_diperiksa or 0 }}</b><span>Sedang Diperiksa</span></div>
+  <div class="card stat"><b>{{ c.diteruskan or 0 }}</b><span>Diteruskan ke Admin</span></div>
+</div>
+
+<div class="tabs">
+  <a class="btn {{ '' if not st else 'sec' }}" href="/petugas/dashboard">Semua ({{ c.total or 0 }})</a>
+  <a class="btn {{ '' if st=='menunggu' or st=='menunggu_pemeriksaan' else 'sec' }}" href="/petugas/dashboard?status=menunggu">Menunggu ({{ c.menunggu or 0 }})</a>
+  <a class="btn {{ '' if st=='sedang_diperiksa' else 'sec' }}" href="/petugas/dashboard?status=sedang_diperiksa">Sedang Diperiksa ({{ c.sedang_diperiksa or 0 }})</a>
+  <a class="btn {{ '' if st=='diteruskan' else 'sec' }}" href="/petugas/dashboard?status=diteruskan">Diteruskan ({{ c.diteruskan or 0 }})</a>
+  <a class="btn {{ '' if st=='terverifikasi' else 'sec' }}" href="/petugas/dashboard?status=terverifikasi">Terverifikasi ({{ c.terverifikasi or 0 }})</a>
+  <a class="btn {{ '' if st=='perlu_revisi' else 'sec' }}" href="/petugas/dashboard?status=perlu_revisi">Perlu Revisi ({{ c.perlu_revisi or 0 }})</a>
+  <a class="btn {{ '' if st=='ditolak' else 'sec' }}" href="/petugas/dashboard?status=ditolak">Ditolak ({{ c.ditolak or 0 }})</a>
+  <a class="btn {{ '' if st=='duplikat' else 'sec' }}" href="/petugas/dashboard?status=duplikat">Duplikat ({{ c.duplikat or 0 }})</a>
+  <a class="btn {{ '' if st=='arsip' else 'sec' }}" href="/petugas/dashboard?status=arsip">Arsip ({{ c.arsip or 0 }})</a>
+</div>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Pelapor &amp; Lokasi</th>
+        <th>Waktu</th>
+        <th>AI</th>
+        <th>Pemeriksaan Data</th>
+        <th>Status Petugas</th>
+        <th>Status Akhir</th>
+        <th>Aksi</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td><b><a href="/petugas/laporan/{{ r.id }}">{{ r.id }}</a></b></td>
+        <td>
+          <b>{{ r.nama }}</b><br>
+          <small class="sub">{{ r.nik|mask_nik }} &middot; {{ r|lokasi }}</small>
+        </td>
+        <td style="font-size:12px;color:var(--mute)">{{ r.created_at[:16]|replace('T', ' ') }}</td>
+        <td>
+          {% if r.kerusakan_ai %}
+          <b>{{ r.kerusakan_ai|kat }}</b><br>
+          <small style="color:var(--mute)">{{ (r.ai_confidence*100)|round }}% keyakinan</small>
+          {% else %}
+          <span style="color:var(--mute)">-</span>
+          {% endif %}
+        </td>
+        <td>
+          {% for i in r.issues if i.level != 'info' %}
+          <span class="chip {{ 'red' if i.code.startswith('DUP_') or i.level == 'error' else 'amber' }}">{{ i.code|isu }}</span>
+          {% endfor %}
+          {% if r.rules_status == 'lolos' %}
+          <span class="chip blue">Data lolos</span>
+          {% endif %}
+        </td>
+        <td>
+          <span class="pill {{ 'p-diteruskan' if r.status_pemeriksaan=='diteruskan' else ('p-sedang_diperiksa' if r.status_pemeriksaan=='sedang_diperiksa' else 'p-menunggu_pemeriksaan') }}">
+            {{ r.status_pemeriksaan|stat_periksa }}
+          </span>
+          {% if r.catatan_petugas %}
+          <div style="font-size:11px;color:var(--mute);margin-top:2px;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="{{ r.catatan_petugas }}">
+            &ldquo;{{ r.catatan_petugas }}&rdquo;
+          </div>
+          {% endif %}
+        </td>
+        <td>
+          <span class="pill p-{{ r.effective_status }}">{{ r.effective_status|stat }}</span>
+          {% if r.status == 'duplikat' and r.duplikat_dari %}
+          <div style="font-size:11px;color:#c2410c;margin-top:2px">Duplikat dari {{ r.duplikat_dari }}</div>
+          {% endif %}
+          {% if r.catatan_admin %}
+          <div style="font-size:11px;color:#9a3412;margin-top:2px;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="{{ r.catatan_admin }}">
+            Catatan: {{ r.catatan_admin }}
+          </div>
+          {% endif %}
+        </td>
+        <td>
+          <a class="btn {{ 'sec' if r.status_pemeriksaan == 'diteruskan' else '' }}" style="padding:6px 12px;font-size:12px" href="/petugas/laporan/{{ r.id }}">
+            {{ 'Tinjau' if r.status_pemeriksaan == 'diteruskan' else 'Periksa' }}
+          </a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" style="text-align:center;padding:24px;color:var(--mute)">Belum ada laporan yang sesuai.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

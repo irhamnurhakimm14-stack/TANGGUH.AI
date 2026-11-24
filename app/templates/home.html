@@ -1,14 +1,62 @@
 {% extends "base.html" %}{% block body %}
 <h1>Beranda</h1><p class="sub">Selamat datang di pusat pendataan kerusakan pascabencana.</p>
 <div class="card" style="background:#e9f6f3"><h2 style="margin-top:0">Selamat datang di TANGGUH.AI</h2>
-<p>Catat kerusakan pascabanjir/galodo. Sistem memeriksa kelengkapan dan duplikasi data, AI menyarankan kategori kerusakan, petugas menentukan keputusan.</p>
-<a class="btn" href="/laporan/baru">+ Buat Laporan Kerusakan</a> <a class="btn sec" href="/verifikasi">Lihat Rekap →</a></div>
-<div class="grid3"><div class="card stat"><b>{{ c.total or 0 }}</b><span>Total laporan</span></div>
-<div class="card stat"><b>{{ c.menunggu or 0 }}</b><span>Menunggu verifikasi</span></div>
-<div class="card stat"><b>{{ c.terverifikasi or 0 }}</b><span>Terverifikasi</span></div></div>
-<div class="card"><h3 style="margin-top:0">Cara kerja</h3><div class="grid3" style="grid-template-columns:repeat(4,1fr)">
-<div><b>01</b><br>Asesmen di lokasi</div><div><b>02</b><br>Isi laporan &amp; foto</div><div><b>03</b><br>Data diperiksa + saran AI</div><div><b>04</b><br>Admin verifikasi</div></div>
-<p class="sub" style="margin-top:12px">Model CNN: {% if ai_ready %}<span class="pill p-lolos">aktif</span>{% else %}<span class="pill p-menunggu">belum dipasang (mode demo)</span>{% endif %}</p></div>
+<p>Catat kerusakan pascabanjir/galodo. Sistem memeriksa kelengkapan dan duplikasi data, AI menyarankan kategori kerusakan, petugas memeriksa awal dan admin menentukan keputusan verifikasi akhir.</p>
+<div class="btns">
+  <a class="btn" href="/laporan/baru">+ Buat Laporan Kerusakan</a>
+  <a class="btn sec" href="/verifikasi">Lihat Rekap &rarr;</a>
+  {% if not is_logged_in %}
+  <a class="btn sec" href="/login">Login Petugas/Admin &rarr;</a>
+  {% elif user_role == 'admin' %}
+  <a class="btn sec" href="/admin/dashboard">Dashboard Admin &rarr;</a>
+  {% else %}
+  <a class="btn sec" href="/petugas/dashboard">Dashboard Petugas &rarr;</a>
+  {% endif %}
+</div>
+</div>
+
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+    <div>
+      <h3 style="margin:0 0 4px">Portal Petugas &amp; Administrator</h3>
+      <p class="sub" style="margin:0">Mendukung alur Human-in-the-Loop dari pemeriksaan awal hingga verifikasi akhir admin.</p>
+    </div>
+    <div>
+      {% if is_logged_in %}
+        {% if user_role == 'admin' %}
+          <a class="btn" href="/admin/dashboard">Buka Dashboard Admin</a>
+        {% else %}
+          <a class="btn" href="/petugas/dashboard">Buka Dashboard Petugas</a>
+        {% endif %}
+      {% else %}
+        <a class="btn" href="/login">Login Petugas / Admin</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="grid3">
+  <div class="card stat"><b>{{ c.total or 0 }}</b><span>Total laporan masyarakat</span></div>
+  <div class="card stat"><b>{{ c.menunggu or 0 }}</b><span>Menunggu verifikasi</span></div>
+  <div class="card stat"><b>{{ c.terverifikasi or 0 }}</b><span>Terverifikasi</span></div>
+</div>
+
+<div class="card"><h3 style="margin-top:0">Alur Sistem (Human-in-the-Loop)</h3>
+<div class="grid3" style="grid-template-columns:repeat(4,1fr)">
+<div><b>01. Pelaporan</b><br>Masyarakat mengirim laporan &amp; foto</div>
+<div><b>02. Validasi AI</b><br>Rule-Based &amp; Saran Klasifikasi CNN</div>
+<div><b>03. Petugas</b><br>Pemeriksaan awal &amp; teruskan ke admin</div>
+<div><b>04. Admin</b><br>Keputusan verifikasi akhir &amp; penanganan</div>
+</div>
+<p class="sub" style="margin-top:12px">Model CNN: {% if ai_ready %}<span class="pill p-lolos">aktif (MobileNetV2)</span>{% else %}<span class="pill p-menunggu">belum dipasang (mode demo)</span>{% endif %}</p></div>
+
 <div class="card"><h3 style="margin-top:0">Laporan terbaru</h3>
-{% for r in latest %}<p><a href="/laporan/{{r.id}}"><b>{{ r.id }}</b></a> · {{ r.nagari }}, {{ r.kecamatan }} <span class="pill p-{{r.status}}">{{ r.status|stat }}</span></p>{% else %}<p class="sub">Belum ada laporan.</p>{% endfor %}</div>
+{% for r in latest %}
+<p><a href="/laporan/{{r.id}}"><b>{{ r.id }}</b></a> · {{ r.nagari }}, {{ r.kecamatan }} 
+  <span class="pill p-{{r.status}}">{{ r.status|stat }}</span>
+  {% if r.status_pemeriksaan %}
+  <span class="chip blue">{{ r.status_pemeriksaan|stat_periksa }}</span>
+  {% endif %}
+</p>
+{% else %}<p class="sub">Belum ada laporan.</p>{% endfor %}</div>
 {% endblock %}

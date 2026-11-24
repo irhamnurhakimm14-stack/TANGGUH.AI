@@ -35,3 +35,36 @@ tr.row-alert td:first-child{border-left:5px solid #dc2626}tr.row-alert{backgroun
 .queue-alert a{color:#9a3412}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}.tabs .btn{padding:8px 13px}
 .note-auto{font-size:12px;color:var(--mute);margin:6px 0}.offline{display:none;background:#fef3c7;color:#92400e;border:1px solid #f59e0b;padding:10px 14px;border-radius:8px;margin-bottom:12px;font-weight:600}
 .btns-form{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+/* --- Multi-Role Authentication & Dashboard UI --- */
+.hdr-user{display:flex;align-items:center;gap:8px;font-size:13px}
+.btn-sm{display:inline-block;padding:4px 10px;font-size:12px;font-weight:600;border-radius:6px;text-decoration:none;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
+.btn-sm:hover{background:#f8fafc}
+.btn-sm.danger{background:#fee2e2;color:#b91c1c;border-color:#fca5a5}
+.btn-sm.danger:hover{background:#fecaca}
+.p-admin{background:#ede9fe;color:#6b21a8}
+.p-petugas{background:#e0e7ff;color:#3730a3}
+.p-perlu_revisi{background:#fef3c7;color:#b45309;border:1px solid #f59e0b}
+.p-duplikat{background:#ede9fe;color:#6b21a8}
+.p-arsip{background:#f1f5f9;color:#64748b}
+.p-diteruskan{background:#ccfbf1;color:#0f766e;font-weight:700}
+.p-sedang_diperiksa{background:#e0f2fe;color:#0369a1}
+.p-menunggu_pemeriksaan{background:#f3f4f6;color:#4b5563}
+.nav-login{background:#f0fdfa;border-color:#99f6e4 !important;color:var(--teal) !important;font-weight:600}
+.login-container{max-width:440px;margin:30px auto}
+.pwd-wrap{position:relative;display:flex;align-items:center}
+.pwd-wrap input{padding-right:75px}
+.btn-pwd-toggle{position:absolute;right:8px;background:none;border:none;color:var(--teal);font-size:12px;font-weight:600;cursor:pointer;padding:6px 8px;border-radius:4px}
+.btn-pwd-toggle:hover{background:#f0fdfa}
+.demo-box{background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:16px;font-size:13px}
+.demo-box h4{margin:0 0 8px;color:var(--ink);font-size:13px}
+.demo-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.demo-card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px;cursor:pointer;transition:border-color .15s}
+.demo-card:hover{border-color:var(--teal);background:#f0fdfa}
+.notice-box{border-left:4px solid var(--teal);background:#f0fdfa;padding:12px 16px;border-radius:6px;margin:14px 0;font-size:13px;line-height:1.5}
+.notice-box.warn{border-color:#f59e0b;background:#fffbeb;color:#92400e}
+.card-petugas{border:2px solid #99f6e4;background:#fcfefe}
+.card-admin{border:2px solid #cbd5e1}
+.badge-role{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.badge-petugas{background:#e0e7ff;color:#3730a3}
+.badge-admin{background:#ede9fe;color:#6b21a8}
+

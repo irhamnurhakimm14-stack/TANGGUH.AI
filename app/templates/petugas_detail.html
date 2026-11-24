@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Pemeriksaan Laporan {{ r.id }} - Petugas TANGGUH.AI{% endblock %}
+{% block body %}
+<div style="margin-bottom:12px">
+  <a href="/petugas/dashboard" class="sub" style="text-decoration:none">&larr; Kembali ke Dashboard Petugas</a>
+</div>
+
+<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+  <div>
+    <h1 style="margin:0 0 4px">Pemeriksaan Laporan {{ r.id }}</h1>
+    <p class="sub" style="margin:0">
+      Dikirim: {{ r.created_at[:16]|replace('T', ' ') }} &middot; 
+      Pemeriksaan: <span class="pill {{ 'p-diteruskan' if r.status_pemeriksaan=='diteruskan' else ('p-sedang_diperiksa' if r.status_pemeriksaan=='sedang_diperiksa' else 'p-menunggu_pemeriksaan') }}">{{ r.status_pemeriksaan|stat_periksa }}</span> &middot; 
+      Keputusan Admin: <span class="pill p-{{ r.status }}">{{ r.status|stat }}</span>
+    </p>
+  </div>
+  <div>
+    <span class="pill p-petugas">Petugas Lapangan</span>
+  </div>
+</div>
+
+{% if r.catatan_admin %}
+<div class="card" style="border-left:4px solid var(--warn);background:var(--warn-bg);padding:12px 16px;margin-bottom:14px">
+  <h4 style="margin:0 0 4px;color:var(--warn)">Catatan dari Administrator:</h4>
+  <p style="margin:0;font-size:13px"><b>Status: {{ r.status|stat }}</b> &mdash; &ldquo;{{ r.catatan_admin }}&rdquo;</p>
+  {% if r.status == 'perlu_revisi' %}
+  <small style="color:var(--warn);display:block;margin-top:4px">Admin meminta perbaikan atau peninjauan ulang terhadap laporan ini.</small>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if dups %}
+<div class="alert-dup">
+  <h3>Terdapat Indikasi Duplikasi Data</h3>
+  <p style="margin:0 0 8px">Laporan ini memiliki kemiripan data dengan laporan lain. Berikan catatan di bawah untuk verifikasi admin.</p>
+  <ul style="margin:0;padding-left:20px">
+    {% for ref, o in dups %}
+    <li>Terkait dengan laporan <b><a href="/petugas/laporan/{{ ref }}">{{ ref }}</a></b> ({{ o.nama }}, status admin: {{ o.status|stat }})</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<div class="grid2">
+  <div>
+    <div class="card">
+      <h3 style="margin-top:0">Data Laporan &amp; Lokasi</h3>
+      <table>
+        <tr><th style="width:140px">ID Laporan</th><td><b>{{ r.id }}</b></td></tr>
+        <tr><th>Nama Pelapor / Korban</th><td><b>{{ r.nama or '-' }}</b></td></tr>
+        <tr><th>NIK</th><td><code>{{ r.nik or '-' }}</code></td></tr>
+        <tr><th>Nomor KK</th><td><code>{{ r.no_kk or '-' }}</code></td></tr>
+        <tr><th>Provinsi</th><td>{{ r.provinsi or '-' }}</td></tr>
+        <tr><th>Kabupaten / Kota</th><td>{{ r.kabupaten or '-' }}</td></tr>
+        <tr><th>Kecamatan</th><td>{{ r.kecamatan or '-' }}</td></tr>
+        <tr><th>Desa / Kelurahan</th><td>{{ r.desa or r.nagari or '-' }}</td></tr>
+        {% if r.dusun or r.jorong %}
+        <tr><th>Dusun / Lingkungan</th><td>{{ r.dusun or r.jorong }}</td></tr>
+        {% endif %}
+        {% if r.rt_rw %}
+        <tr><th>RT / RW</th><td>{{ r.rt_rw }}</td></tr>
+        {% endif %}
+        <tr><th>Koordinat GPS</th><td>{{ r.koordinat or '-' }}</td></tr>
+        <tr><th>Deskripsi Kerusakan</th><td>{{ r.deskripsi or '-' }}</td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0">Hasil pemeriksaan data</h3>
+      {% for i in r.issues %}
+      <div class="iss {{ i.level }}">
+        <b>{{ i.code|isu }}</b> &mdash; {{ i.message }}
+        {% if i.ref_id %} <a href="/petugas/laporan/{{ i.ref_id }}">(lihat {{ i.ref_id }})</a>{% endif %}
+      </div>
+      {% else %}
+      <div class="iss info" style="background:var(--ok-bg);color:var(--ok)">
+        Tidak ada temuan. Format data valid.
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div>
+    {% if r.foto %}
+    <div class="card">
+      <h3 style="margin-top:0">Foto Kerusakan</h3>
+      <img class="thumb" src="/foto/{{ r.foto }}" alt="Foto kerusakan bangunan" style="max-height:280px;object-fit:cover;width:100%">
+    </div>
+    {% endif %}
+
+    <div class="card ai">
+      <small style="color:var(--mute);font-weight:700">REKOMENDASI AI (MobileNetV2 CNN)</small>
+      {% if r.kerusakan_ai %}
+      <div class="big" style="margin:6px 0">{{ r.kerusakan_ai|kat }}</div>
+      <div class="bar"><i style="width:{{ (r.ai_confidence*100)|round }}%"></i></div>
+      <small style="display:block;margin-top:4px">Keyakinan model: <b>{{ (r.ai_confidence*100)|round }}%</b></small>
+      {% else %}
+      <p style="margin:6px 0;color:var(--mute)">Model CNN belum dipasang atau foto tidak mencukupi.</p>
+      {% endif %}
+      <small style="display:block;margin-top:8px;color:var(--mute);font-size:11px">
+        * Klasifikasi CNN memprediksi 3 kategori bangunan (Ringan, Sedang, Berat).
+      </small>
+    </div>
+
+    <!-- Form Pemeriksaan Petugas Lapangan -->
+    <form class="card" method="post" action="{{ url_for('petugas_detail', rid=r.id) }}" style="margin-top:16px">
+      <h3 style="margin-top:0">Form Pemeriksaan Petugas</h3>
+      <p style="font-size:12px;color:var(--mute);margin:0 0 12px">
+        Isi catatan hasil pemeriksaan awal lalu teruskan laporan ke Admin.
+      </p>
+
+      {% if r.petugas_nama %}
+      <div style="font-size:12px;background:#f8fafc;padding:6px 10px;border-radius:6px;margin-bottom:12px;border:1px solid var(--line)">
+        Pemeriksa: <b>{{ r.petugas_nama }}</b> ({{ r.waktu_pemeriksaan_petugas[:16]|replace('T', ' ') if r.waktu_pemeriksaan_petugas else '-' }})
+      </div>
+      {% endif %}
+
+      <label for="status_pemeriksaan">Tindakan Pemeriksaan</label>
+      <select id="status_pemeriksaan" name="status_pemeriksaan" required>
+        <option value="diteruskan" {{ 'selected' if r.status_pemeriksaan == 'diteruskan' or not r.status_pemeriksaan }}>Diteruskan ke Admin (Pemeriksaan Selesai)</option>
+        <option value="sedang_diperiksa" {{ 'selected' if r.status_pemeriksaan == 'sedang_diperiksa' }}>Simpan sebagai Sedang Diperiksa</option>
+      </select>
+
+      <label for="catatan_petugas">Catatan Pemeriksaan</label>
+      <textarea id="catatan_petugas" name="catatan_petugas" placeholder="Tuliskan catatan pemeriksaan lapangan..." required>{{ r.catatan_petugas or '' }}</textarea>
+
+      <div style="margin-top:14px">
+        <button type="submit" class="btn" style="width:100%">Simpan Pemeriksaan</button>
+      </div>
+
+      <div class="disc" style="margin-top:12px;margin-bottom:0;font-size:11px">
+        Petugas lapangan melakukan pemeriksaan awal dan meneruskan laporan. Keputusan final verifikasi ditetapkan oleh Administrator.
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

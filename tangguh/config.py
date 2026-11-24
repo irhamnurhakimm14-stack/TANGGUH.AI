@@ -19,6 +19,8 @@ DB_PATH = DATA_DIR / "tangguh.sqlite3"
 
 # Kode provinsi pada 2 digit pertama NIK. Sumatera Barat = 13.
 ALLOWED_NIK_PROVINCE = ("13",)
+# Seluruh kode provinsi resmi di Indonesia (11 s.d. 96)
+ALL_PROVINCES_NIK = tuple(f"{i:02d}" for i in range(11, 97))
 
 # Kotak batas koordinat (lat_min, lat_max, lon_min, lon_max)
 BBOX_SUMBAR = (-3.6, 1.0, 98.4, 102.0)

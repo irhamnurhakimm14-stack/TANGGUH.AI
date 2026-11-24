@@ -49,11 +49,11 @@ def norm_text(value) -> str:
 # ------------------------------------------------------------- 1. kelengkapan
 
 DEFAULT_REQUIRED = {
-    "nama": "Nama pemilik",
-    "nik": "NIK",
+    "nama": "Nama pemilik/pelapor",
+    "provinsi": "Provinsi",
+    "kabupaten": "Kabupaten/Kota",
     "kecamatan": "Kecamatan",
-    "nagari": "Nagari/Kelurahan",
-    "jorong": "Jorong",
+    "desa": "Desa/Kelurahan",
 }
 
 
@@ -61,7 +61,22 @@ def validate_completeness(rec: dict, required: dict | None = None) -> list[dict]
     required = required or DEFAULT_REQUIRED
     out = []
     for field, label in required.items():
-        if is_blank(rec.get(field)):
+        val = rec.get(field)
+        # Fallback mapping untuk kompatibilitas data lama nagari/jorong dan data baru nasional
+        if field == "desa" and is_blank(val):
+            val = rec.get("nagari")
+        elif field == "nagari" and is_blank(val):
+            val = rec.get("desa")
+        elif field == "dusun" and is_blank(val):
+            val = rec.get("jorong")
+        elif field == "jorong" and is_blank(val):
+            val = rec.get("dusun")
+        elif field == "provinsi" and is_blank(val) and (rec.get("nagari") or rec.get("jorong") or (rec.get("nik") and str(rec.get("nik")).startswith("13"))):
+            val = "Sumatera Barat"
+        elif field == "kabupaten" and is_blank(val) and (rec.get("nagari") or rec.get("jorong") or (rec.get("nik") and str(rec.get("nik")).startswith("13"))):
+            val = "Kabupaten Solok"
+
+        if is_blank(val):
             out.append(issue("KOSONG", "error", field, f"{label} wajib diisi."))
     return out
 
@@ -82,7 +97,7 @@ def validate_nik(nik, allowed_province=None, field: str = "nik") -> list[dict]:
     if len(s) != 16:
         out.append(issue("NIK_PANJANG", "error", field, f"NIK harus 16 digit, terdeteksi {len(s)} digit."))
         return out  # sisa pemeriksaan tidak bermakna bila panjang salah
-    if s[:2] not in allowed_province:
+    if allowed_province != "all" and s[:2] not in allowed_province:
         out.append(
             issue("NIK_LUAR_WILAYAH", "warning", field,
                   f"Kode provinsi NIK {s[:2]} di luar wilayah ({', '.join(allowed_province)}). Cek domisili.")
@@ -92,7 +107,6 @@ def validate_nik(nik, allowed_province=None, field: str = "nik") -> list[dict]:
         dd -= 40
     ok = 1 <= mm <= 12 and dd >= 1
     if ok:
-        # tahun 2 digit ambigu (19xx/20xx): valid bila salah satunya sah
         ok = any(dd <= calendar.monthrange(y, mm)[1] for y in (1900 + yy, 2000 + yy))
     if not ok:
         out.append(issue("NIK_TGL_LAHIR", "error", field, "Tanggal lahir pada NIK tidak valid."))
@@ -133,7 +147,7 @@ def parse_coordinate(text):
     return lat, lon
 
 
-def validate_coordinate(text, field: str = "koordinat") -> list[dict]:
+def validate_coordinate(text, field: str = "koordinat", check_sumbar: bool = True) -> list[dict]:
     if is_blank(text):
         return []
     p = parse_coordinate(text)
@@ -143,9 +157,10 @@ def validate_coordinate(text, field: str = "koordinat") -> list[dict]:
     a, b, c, d = config.BBOX_INDONESIA
     if not (a <= lat <= b and c <= lon <= d):
         return [issue("GPS_LUAR_INDONESIA", "error", field, f"Koordinat ({lat:.5f}, {lon:.5f}) di luar Indonesia.")]
-    a, b, c, d = config.BBOX_SUMBAR
-    if not (a <= lat <= b and c <= lon <= d):
-        return [issue("GPS_LUAR_SUMBAR", "warning", field, f"Koordinat ({lat:.5f}, {lon:.5f}) di luar Sumatera Barat.")]
+    if check_sumbar:
+        a, b, c, d = config.BBOX_SUMBAR
+        if not (a <= lat <= b and c <= lon <= d):
+            return [issue("GPS_LUAR_SUMBAR", "warning", field, f"Koordinat ({lat:.5f}, {lon:.5f}) di luar Sumatera Barat.")]
     return []
 
 
@@ -185,32 +200,52 @@ def validate_consistency(rec: dict) -> list[dict]:
 
 
 def find_duplicates(rec: dict, existing: Iterable[dict], name_threshold: float = 0.88) -> list[dict]:
-    """Bandingkan satu laporan baru dengan laporan yang sudah ada.
+    """Bandingkan laporan baru dengan laporan yang sudah ada secara cerdas dan komprehensif.
 
-    Dicocokkan: NIK sama (kuat), No. KK sama (sedang), nama mirip + jorong sama (lemah).
-    Hasilnya PERINGATAN: satu rumah tangga bisa sah punya beberapa laporan
-    (mis. laporan perkembangan kerusakan), jadi tidak ada yang dihapus otomatis.
+    Indikator duplikasi meliputi:
+    1. NIK sama (kuat)
+    2. No. KK sama (sedang)
+    3. Nama mirip + lokasi sama (desa/kelurahan/dusun)
+    4. Lokasi sama + deskripsi sangat mirip
+    5. Foto identik (bila tersedia)
+
+    Hasilnya PERINGATAN (warning): tidak ada laporan yang ditolak atau dihapus otomatis.
+    Admin/Petugas dapat menelaah dan memutuskan apakah benar-benar duplikat atau kejadian terpisah.
     """
     nik, kk = clean_digits(rec.get("nik")), clean_digits(rec.get("no_kk"))
-    nama, jorong = norm_text(rec.get("nama")), norm_text(rec.get("jorong"))
+    nama = norm_text(rec.get("nama"))
+    loc = norm_text(rec.get("desa") or rec.get("nagari") or rec.get("jorong") or rec.get("dusun"))
+    desc = norm_text(rec.get("deskripsi"))
+    foto = (rec.get("foto") or "").strip()
+
     out, seen = [], set()
     for ex in existing:
         rid = ex.get("id", ex.get("no"))
         if rec.get("id") is not None and rid == rec.get("id"):
             continue
+        ex_loc = norm_text(ex.get("desa") or ex.get("nagari") or ex.get("jorong") or ex.get("dusun"))
+        ex_desc = norm_text(ex.get("deskripsi"))
+        ex_foto = (ex.get("foto") or "").strip()
+
         reason = None
         if nik and len(nik) == 16 and nik == clean_digits(ex.get("nik")):
-            reason = ("DUP_NIK", "NIK sama")
+            reason = ("DUP_NIK", "NIK yang sama")
         elif kk and len(kk) == 16 and kk == clean_digits(ex.get("no_kk")):
-            reason = ("DUP_KK", "Nomor KK sama")
-        elif nama and jorong and jorong == norm_text(ex.get("jorong")) and \
+            reason = ("DUP_KK", "Nomor KK yang sama")
+        elif nama and loc and loc == ex_loc and \
                 SequenceMatcher(None, nama, norm_text(ex.get("nama"))).ratio() >= name_threshold:
-            reason = ("DUP_NAMA", "Nama mirip & jorong sama")
+            reason = ("DUP_NAMA", "nama dan lokasi yang mirip")
+        elif loc and ex_loc and loc == ex_loc and desc and ex_desc and \
+                SequenceMatcher(None, desc, ex_desc).ratio() >= 0.85:
+            reason = ("DUP_LOKASI", "lokasi dan deskripsi yang sangat mirip")
+        elif foto and ex_foto and foto == ex_foto:
+            reason = ("DUP_FOTO", "foto kerusakan yang sama")
+
         if reason and rid not in seen:
             seen.add(rid)
             out.append(
                 issue(reason[0], "warning", "nik",
-                      f"Terdapat duplikasi data: {reason[1]} dengan laporan {rid}.", ref_id=rid)
+                      f"Terindikasi duplikat dari laporan {rid} ({reason[1]}).", ref_id=rid)
             )
     return out
 
@@ -219,13 +254,19 @@ def find_duplicates(rec: dict, existing: Iterable[dict], name_threshold: float =
 
 
 def validate_record(rec: dict, existing: Iterable[dict] | None = None,
-                    required: dict | None = None) -> list[dict]:
-    """Jalankan semua aturan untuk satu laporan."""
+                    required: dict | None = None, allowed_province=None) -> list[dict]:
+    """Jalankan semua aturan untuk satu laporan dengan cakupan nasional."""
     issues = []
     issues += validate_completeness(rec, required)
-    issues += validate_nik(rec.get("nik"))
+
+    # Bila wilayah bukan Sumatera Barat atau mode nasional aktif, terima kode NIK dari seluruh provinsi
+    prov = (rec.get("provinsi") or "").strip().lower()
+    is_non_sumbar = prov != "" and prov not in ("sumatera barat", "sumbar", "-")
+    prov_rule = allowed_province or ("all" if is_non_sumbar else config.ALLOWED_NIK_PROVINCE)
+
+    issues += validate_nik(rec.get("nik"), allowed_province=prov_rule)
     issues += validate_kk(rec.get("no_kk"))
-    issues += validate_coordinate(rec.get("koordinat"))
+    issues += validate_coordinate(rec.get("koordinat"), check_sumbar=(not is_non_sumbar))
     issues += validate_consistency(rec)
     if existing is not None:
         issues += find_duplicates(rec, existing)

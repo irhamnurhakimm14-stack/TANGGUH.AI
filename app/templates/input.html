@@ -1,38 +1,135 @@
 {% extends "base.html" %}{% block body %}
-<h1>Input Laporan Kerusakan</h1><p class="sub">Lengkapi data lokasi dan pemilik rumah. Foto hanya menjadi bukti pendukung.</p>
-<div id="offline" class="offline">📵 Sinyal terputus. Isian tetap tersimpan otomatis di perangkat ini. Kirim setelah sinyal kembali.</div>
-<div class="grid2"><form id="lapform" class="card" method="post" enctype="multipart/form-data" data-draft="{{ f.draft_id or 'baru' }}">
+<h1>Input Laporan Kerusakan</h1>
+<p class="sub">Lengkapi data lokasi dan pemilik rumah terdampak bencana. Formulir berlaku untuk seluruh wilayah Indonesia.</p>
+<div id="offline" class="offline">Sinyal terputus. Isian tetap tersimpan otomatis di perangkat ini. Kirim setelah sinyal kembali.</div>
+
+<div class="grid2">
+<form id="lapform" class="card" method="post" enctype="multipart/form-data" data-draft="{{ f.draft_id or 'baru' }}">
 <input type="hidden" name="draft_id" value="{{ f.draft_id }}">
 {% if f.draft_id %}<div class="disc">Melanjutkan draft <b>{{ f.draft_id }}</b>.</div>{% endif %}
-<label>Nama pemilik *</label><input name="nama" value="{{ f.nama }}">
-<label>NIK *</label><input name="nik" value="{{ f.nik }}" inputmode="numeric" placeholder="16 digit">
-<label>Nomor KK</label><input name="no_kk" value="{{ f.no_kk }}" inputmode="numeric" placeholder="16 digit">
-<label>Kecamatan *</label><input name="kecamatan" value="{{ f.kecamatan }}">
-<label>Nagari/Kelurahan *</label><input name="nagari" value="{{ f.nagari }}">
-<label>Jorong *</label><input name="jorong" value="{{ f.jorong }}">
-<label>Koordinat GPS</label><input name="koordinat" value="{{ f.koordinat }}" placeholder="0.95393 S 100.62134 E">
-<label>Deskripsi kerusakan *</label><textarea name="deskripsi" placeholder="Jelaskan objek, bagian yang rusak, dan kondisi yang dilihat…">{{ f.deskripsi }}</textarea>
-<label>Foto kerusakan *</label>
-{% if f.foto %}<p class="note-auto">Foto sudah tersimpan di draft: <img src="/foto/{{ f.foto }}" alt="" style="height:60px;vertical-align:middle;border-radius:6px"> (pilih file baru bila ingin mengganti)</p>{% endif %}
-<input type="file" name="foto" accept="image/*">
-<label style="font-weight:400"><input type="checkbox" name="setuju" style="width:auto"> Saya menyetujui data dan foto digunakan untuk pendataan bencana dan memastikan tidak memuat wajah atau identitas korban.</label>
-<div class="btns-form"><button class="btn" name="aksi" value="kirim">Kirim &amp; Klasifikasikan</button>
-<button class="btn sec" name="aksi" value="draft" formnovalidate>Simpan sebagai draft</button></div>
+
+<label>Nama Pemilik / Pelapor *</label>
+<input name="nama" value="{{ f.nama }}" required placeholder="Nama lengkap sesuai KTP">
+
+<div class="grid2" style="grid-template-columns:1fr 1fr;gap:10px">
+  <div>
+    <label>NIK *</label>
+    <input name="nik" value="{{ f.nik }}" inputmode="numeric" placeholder="16 digit angka" required>
+  </div>
+  <div>
+    <label>Nomor KK (Opsional)</label>
+    <input name="no_kk" value="{{ f.no_kk }}" inputmode="numeric" placeholder="16 digit (bila ada)">
+  </div>
+</div>
+
+<div class="grid2" style="grid-template-columns:1fr 1fr;gap:10px">
+  <div>
+    <label>Provinsi *</label>
+    <input name="provinsi" value="{{ f.provinsi or '' }}" placeholder="Contoh: Jawa Barat" required>
+  </div>
+  <div>
+    <label>Kabupaten / Kota *</label>
+    <input name="kabupaten" value="{{ f.kabupaten or '' }}" placeholder="Contoh: Kabupaten Bandung Barat" required>
+  </div>
+</div>
+
+<div class="grid2" style="grid-template-columns:1fr 1fr;gap:10px">
+  <div>
+    <label>Kecamatan *</label>
+    <input name="kecamatan" value="{{ f.kecamatan or '' }}" placeholder="Nama kecamatan" required>
+  </div>
+  <div>
+    <label>Desa / Kelurahan *</label>
+    <input name="desa" value="{{ f.desa or f.nagari or '' }}" placeholder="Nama desa atau kelurahan" required>
+  </div>
+</div>
+
+<div class="grid2" style="grid-template-columns:2fr 1fr;gap:10px">
+  <div>
+    <label>Dusun / Lingkungan (Opsional)</label>
+    <input name="dusun" value="{{ f.dusun or f.jorong or '' }}" placeholder="Nama dusun, kampung, atau lingkungan">
+  </div>
+  <div>
+    <label>RT / RW (Opsional)</label>
+    <input name="rt_rw" value="{{ f.rt_rw or '' }}" placeholder="001/003">
+  </div>
+</div>
+
+<div>
+  <label>Koordinat GPS (Opsional)</label>
+  <div style="display:flex;gap:6px">
+    <input id="koordinatInput" name="koordinat" value="{{ f.koordinat or '' }}" placeholder="-6.2088 106.8456 atau 0.95393 S 100.62134 E">
+    <button type="button" class="btn sec" style="padding:6px 12px;font-size:12px;white-space:nowrap" onclick="getGPSLocation()">Lokasi Perangkat</button>
+  </div>
+  <small id="gpsStatus" style="color:var(--mute);font-size:11px;display:block;margin-top:2px"></small>
+</div>
+
+<label>Deskripsi Kerusakan *</label>
+<textarea name="deskripsi" required placeholder="Jelaskan jenis bangunan, bagian yang rusak (atap, dinding, fondasi), dan kondisi kerusakan yang terlihat...">{{ f.deskripsi }}</textarea>
+
+<label>Foto Kerusakan Bangunan *</label>
+{% if f.foto %}
+<p class="note-auto">Foto tersimpan di draft: <img src="/foto/{{ f.foto }}" alt="" style="height:60px;vertical-align:middle;border-radius:6px;border:1px solid var(--line)"> (pilih file baru bila ingin mengganti)</p>
+{% endif %}
+<input type="file" name="foto" accept="image/*" {% if not f.foto %}required{% endif %}>
+
+<div style="margin-top:14px;background:#f8fafc;padding:10px;border-radius:6px;border:1px solid var(--line)">
+  <label style="font-weight:400;margin:0;font-size:12px;line-height:1.5">
+    <input type="checkbox" name="setuju" style="width:auto;margin-right:6px" required>
+    Saya menyatakan data dan foto yang dilaporkan adalah benar untuk keperluan asesmen dan penanganan pascabencana. Saya memahami bahwa data identitas dilindungi sesuai prinsip perlindungan data pribadi dan hanya diakses oleh petugas serta administrator yang berwenang.
+  </label>
+</div>
+
+<div class="btns-form" style="margin-top:16px">
+  <button class="btn" name="aksi" value="kirim">Kirim &amp; Klasifikasikan</button>
+  <button class="btn sec" name="aksi" value="draft" formnovalidate>Simpan sebagai draft</button>
+</div>
 <p id="autosave-note" class="note-auto">Isian tersimpan otomatis di perangkat ini saat Anda mengetik (foto tidak ikut, pilih ulang bila perlu).</p>
 </form>
-<div class="card"><h3 style="margin-top:0">Yang diperiksa otomatis</h3><ul><li>Kelengkapan isian</li><li>Format NIK, KK, dan GPS</li><li>Potensi duplikasi</li><li>Konsistensi kerusakan vs penanganan</li></ul>
-<div class="disc">Laporan terindikasi duplikat <b>tidak dihapus dan tidak ditolak otomatis</b>; admin yang memutuskan.</div>
-<div class="disc"><b>Draft</b> = simpan di server tanpa pemeriksaan (butuh sinyal). Simpan otomatis di perangkat tetap jalan walau sinyal hilang.</div></div></div>
+
+<div class="card">
+  <h3 style="margin-top:0">Ketentuan &amp; Validasi Sistem</h3>
+  <ul>
+    <li><b>Cakupan Nasional:</b> Formulir berlaku untuk pelaporan di seluruh wilayah Indonesia.</li>
+    <li><b>Validasi Otomatis:</b> Sistem memeriksa kelengkapan identitas, format NIK, dan potensi duplikasi data.</li>
+    <li><b>Perlindungan Duplikasi:</b> Laporan yang dicurigai duplikat <b>tidak ditolak otomatis</b>; petugas dan admin akan memeriksa fakta sebelum penetapan.</li>
+    <li><b>Keamanan Data Pribadi:</b> NIK dan identitas sensitif disensor di ruang publik dan tidak dikirimkan ke model AI umum.</li>
+  </ul>
+  <div class="disc">
+    <b>Penyimpanan Draft:</b> Tombol <i>Simpan sebagai draft</i> menyimpan data di server tanpa validasi kelengkapan, sehingga dapat dilanjutkan sewaktu-waktu.
+  </div>
+</div>
+</div>
+
 <script>
+function getGPSLocation() {
+  var stat = document.getElementById('gpsStatus');
+  var inp = document.getElementById('koordinatInput');
+  if (!navigator.geolocation) {
+    stat.textContent = 'Geolocation tidak didukung pada browser ini.';
+    return;
+  }
+  stat.textContent = 'Mencari titik koordinat perangkat...';
+  navigator.geolocation.getCurrentPosition(function(pos) {
+    var lat = pos.coords.latitude.toFixed(5);
+    var lon = pos.coords.longitude.toFixed(5);
+    inp.value = lat + ' ' + lon;
+    stat.textContent = 'Koordinat berhasil terisi: ' + lat + ', ' + lon;
+  }, function(err) {
+    stat.textContent = 'Gagal mengambil lokasi: ' + err.message;
+  }, {enableHighAccuracy: true, timeout: 10000});
+}
+
 (function(){
   var form=document.getElementById('lapform'), note=document.getElementById('autosave-note'), off=document.getElementById('offline');
-  var KEY='tangguh_draf_'+(form.dataset.draft||'baru'), N=['nama','nik','no_kk','kecamatan','nagari','jorong','koordinat','deskripsi'];
-  function save(){try{var d={t:Date.now()};N.forEach(function(n){d[n]=form.elements[n].value});
-    if(N.some(function(n){return d[n]})){localStorage.setItem(KEY,JSON.stringify(d));note.textContent='✓ Tersimpan otomatis di perangkat ini pukul '+new Date().toLocaleTimeString('id-ID')+' (foto tidak ikut).'}}catch(e){}}
+  var KEY='tangguh_draf_'+(form.dataset.draft||'baru');
+  var N=['nama','nik','no_kk','provinsi','kabupaten','kecamatan','desa','dusun','rt_rw','koordinat','deskripsi'];
+  function save(){try{var d={t:Date.now()};N.forEach(function(n){if(form.elements[n])d[n]=form.elements[n].value});
+    if(N.some(function(n){return d[n]})){localStorage.setItem(KEY,JSON.stringify(d));note.textContent='Tersimpan otomatis di perangkat pukul '+new Date().toLocaleTimeString('id-ID');}}catch(e){}}
   try{var d=JSON.parse(localStorage.getItem(KEY)||'null');
-    if(d&&N.every(function(n){return !form.elements[n].value})){N.forEach(function(n){if(d[n])form.elements[n].value=d[n]});
-      note.textContent='↺ Isian dipulihkan dari simpanan otomatis ('+new Date(d.t).toLocaleString('id-ID')+'). Pilih ulang foto.'}}catch(e){}
-  N.forEach(function(n){form.elements[n].addEventListener('input',save)});
+    if(d&&N.every(function(n){return !form.elements[n]||!form.elements[n].value})){N.forEach(function(n){if(d[n]&&form.elements[n])form.elements[n].value=d[n]});
+      note.textContent='Isian dipulihkan dari simpanan otomatis ('+new Date(d.t).toLocaleString('id-ID')+'). Pilih ulang foto.'}}catch(e){}
+  N.forEach(function(n){if(form.elements[n])form.elements[n].addEventListener('input',save)});
   function net(){off.style.display=navigator.onLine?'none':'block'} window.addEventListener('online',net);window.addEventListener('offline',net);net();
   form.addEventListener('submit',function(e){if(!navigator.onLine){e.preventDefault();save();alert('Sedang offline. Isian aman di perangkat ini. Kirim lagi setelah sinyal kembali.')}});
 })();

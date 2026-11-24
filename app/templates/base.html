@@ -1,16 +1,37 @@
 <!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{% block title %}TANGGUH.AI{% endblock %}</title><link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"></head><body>
-<header><a class="brand" href="/">◈ TANGGUH.AI</a><span class="hdr-mid">SUMATERA BARAT / PENDATAAN PASCABENCANA</span><span>Petugas Demo</span></header>
+<header>
+<a class="brand" href="/">TANGGUH.AI</a>
+<span class="hdr-mid">PENDATAAN PASCABENCANA</span>
+<div>
+{% if is_logged_in %}
+<span style="font-size:13px">
+  <b>{{ user_nama }}</b> <span class="pill {{ 'p-admin' if user_role=='admin' else 'p-petugas' }}">{{ user_role|upper }}</span>
+  <a href="/ganti-password" style="margin-left:10px;font-size:12px;color:var(--mute);text-decoration:none">Ganti Sandi</a>
+  <a href="/logout" style="margin-left:10px;font-size:12px;color:var(--err);text-decoration:none;font-weight:600">Keluar</a>
+</span>
+{% else %}
+<a class="btn sec" style="padding:5px 12px;font-size:12px" href="/login">Login Petugas/Admin</a>
+{% endif %}
+</div>
+</header>
 <div class="layout"><nav><small>RUANG KERJA</small>
 {% set p = request.path %}
-<a href="/" class="{{ 'on' if p=='/' }}">Beranda</a>
+{% if not is_logged_in %}
+<a href="/login" class="{{ 'on' if p=='/' or p=='/login' }}">Login Petugas/Admin</a>
+{% endif %}
+{% if user_role == 'petugas' %}
+<a href="/petugas/dashboard" class="{{ 'on' if p.startswith('/petugas') }}">Dashboard Petugas</a>
+{% elif user_role == 'admin' %}
+<a href="/admin/dashboard" class="{{ 'on' if p.startswith('/admin') }}">Dashboard Admin</a>
+{% endif %}
 <a href="/laporan/baru" class="{{ 'on' if p=='/laporan/baru' }}">Input Laporan</a>
-<a href="/verifikasi" class="{{ 'on' if p.startswith('/verifikasi') or p.startswith('/laporan/T') }}">Verifikasi &amp; Rekap</a>
+<a href="/verifikasi" class="{{ 'on' if p.startswith('/verifikasi') or (p.startswith('/laporan/T') and not p.startswith('/petugas')) }}">Verifikasi &amp; Rekap</a>
 <a href="/draft" class="{{ 'on' if p.startswith('/draft') }}">Draft{% if draft_count %} <span class="pill p-menunggu">{{ draft_count }}</span>{% endif %}</a>
 <a href="/ringkasan" class="{{ 'on' if p=='/ringkasan' }}">Ringkasan AI</a>
 <a href="/panduan" class="{{ 'on' if p=='/panduan' }}">Panduan</a>
 <div class="disc" style="margin-top:20px">Asesmen setelah lokasi aman. Jangan unggah data identitas korban yang tidak perlu.</div></nav>
 <main>{% with m = get_flashed_messages(with_categories=true) %}{% for cat,msg in m %}<div class="flash {{cat}}">{{ msg }}</div>{% endfor %}{% endwith %}
 {% block body %}{% endblock %}
-<p style="color:var(--mute);font-size:12px">TANGGUH.AI · AI hanya menyarankan. Keputusan akhir ada pada petugas/admin.</p></main></div>
+<p style="color:var(--mute);font-size:12px;margin-top:28px">TANGGUH.AI · Platform Pendataan Pascabencana Nasional · AI hanya menyarankan, keputusan akhir pada verifikator manusia.</p></main></div>
 <script>try{if(location.search.indexOf('saved=')>-1){Object.keys(localStorage).forEach(function(k){if(k.indexOf('tangguh_draf_')===0)localStorage.removeItem(k)})}}catch(e){}</script></body></html>

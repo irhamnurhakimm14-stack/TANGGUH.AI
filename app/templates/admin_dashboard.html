@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Dashboard Administrator - TANGGUH.AI{% endblock %}
+{% block body %}
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:8px">
+  <div>
+    <h1 style="margin:0 0 4px">Dashboard Administrator</h1>
+    <p class="sub" style="margin:0">Pusat pengelolaan laporan, catatan petugas, dan verifikasi akhir.</p>
+  </div>
+  <div>
+    <a class="btn sec" href="/ringkasan">Ringkasan AI</a>
+    <a class="btn" href="/laporan/baru">+ Input Laporan</a>
+  </div>
+</div>
+
+<div class="disc" style="margin-top:4px;margin-bottom:14px">
+  <b>Wewenang Administrator:</b> Telaah foto asli, rekomendasi AI, dan catatan petugas lapangan, lalu tetapkan keputusan akhir (Terverifikasi, Perlu Revisi, Ditolak, atau Duplikat). Laporan duplikat dihubungkan dengan ID laporan utama dan tidak dihitung dalam ringkasan kerusakan.
+</div>
+
+{% if c.temuan %}
+<div class="queue-alert">
+  Perhatian: Terdapat <b>{{ c.temuan }}</b> laporan yang memiliki temuan data atau duplikasi.
+  <a href="/admin/dashboard?tab=temuan">Lihat laporan temuan &rarr;</a>
+</div>
+{% endif %}
+
+<div class="grid3" style="grid-template-columns:repeat(6,1fr);margin-bottom:14px">
+  <div class="card stat"><b>{{ c.total or 0 }}</b><span>Total Laporan</span></div>
+  <div class="card stat"><b>{{ c.siap or 0 }}</b><span>Siap Verifikasi</span></div>
+  <div class="card stat"><b>{{ c.terverifikasi or 0 }}</b><span>Terverifikasi</span></div>
+  <div class="card stat"><b>{{ c.perlu_revisi or 0 }}</b><span>Perlu Revisi</span></div>
+  <div class="card stat"><b>{{ c.ditolak or 0 }}</b><span>Ditolak</span></div>
+  <div class="card stat"><b>{{ c.duplikat or 0 }}</b><span>Duplikat</span></div>
+</div>
+
+<div class="tabs">
+  <a class="btn {{ '' if tab=='semua' else 'sec' }}" href="/admin/dashboard?tab=semua">Semua ({{ c.total or 0 }})</a>
+  <a class="btn {{ '' if tab=='menunggu' else 'sec' }}" href="/admin/dashboard?tab=menunggu">Menunggu ({{ c.menunggu or 0 }})</a>
+  <a class="btn {{ '' if tab=='siap' else 'sec' }}" href="/admin/dashboard?tab=siap">Siap Verifikasi ({{ c.siap or 0 }})</a>
+  <a class="btn {{ '' if tab=='temuan' else 'sec' }}" href="/admin/dashboard?tab=temuan">Perlu Dicek ({{ c.temuan or 0 }})</a>
+  <a class="btn {{ '' if tab=='terverifikasi' else 'sec' }}" href="/admin/dashboard?tab=terverifikasi">Terverifikasi ({{ c.terverifikasi or 0 }})</a>
+  <a class="btn {{ '' if tab=='perlu_revisi' else 'sec' }}" href="/admin/dashboard?tab=perlu_revisi">Perlu Revisi ({{ c.perlu_revisi or 0 }})</a>
+  <a class="btn {{ '' if tab=='ditolak' else 'sec' }}" href="/admin/dashboard?tab=ditolak">Ditolak ({{ c.ditolak or 0 }})</a>
+  <a class="btn {{ '' if tab=='duplikat' else 'sec' }}" href="/admin/dashboard?tab=duplikat">Duplikat ({{ c.duplikat or 0 }})</a>
+  <a class="btn {{ '' if tab=='arsip' else 'sec' }}" href="/admin/dashboard?tab=arsip">Arsip ({{ c.arsip or 0 }})</a>
+</div>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Pelapor &amp; Lokasi</th>
+        <th>Foto</th>
+        <th>AI</th>
+        <th>Catatan Petugas</th>
+        <th>Pemeriksaan Data</th>
+        <th>Status Akhir</th>
+        <th>Aksi</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr class="{{ 'row-alert' if r.id in urgent }}">
+        <td><b><a href="/laporan/{{ r.id }}">{{ r.id }}</a></b></td>
+        <td>
+          <b>{{ r.nama }}</b><br>
+          <small class="sub">{{ r.nik|mask_nik }} &middot; {{ r|lokasi }}</small>
+        </td>
+        <td>
+          {% if r.foto %}
+          <a href="/foto/{{ r.foto }}" target="_blank">
+            <img src="/foto/{{ r.foto }}" alt="thumb" style="width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--line)">
+          </a>
+          {% else %}
+          <span style="color:var(--mute);font-size:12px">-</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if r.kerusakan_ai %}
+          <b>{{ r.kerusakan_ai|kat }}</b><br>
+          <small style="color:var(--mute)">{{ (r.ai_confidence*100)|round }}%</small>
+          {% else %}
+          <span style="color:var(--mute)">-</span>
+          {% endif %}
+        </td>
+        <td>
+          <span class="pill {{ 'p-diteruskan' if r.status_pemeriksaan=='diteruskan' else ('p-sedang_diperiksa' if r.status_pemeriksaan=='sedang_diperiksa' else 'p-menunggu_pemeriksaan') }}">
+            {{ r.status_pemeriksaan|stat_periksa }}
+          </span>
+          {% if r.petugas_nama %}
+          <div style="font-size:11px;color:var(--mute);margin-top:2px">Petugas: {{ r.petugas_nama }}</div>
+          {% endif %}
+          {% if r.catatan_petugas %}
+          <div style="font-size:11px;background:#f8fafc;padding:3px 6px;border-radius:4px;margin-top:4px;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="{{ r.catatan_petugas }}">
+            &ldquo;{{ r.catatan_petugas }}&rdquo;
+          </div>
+          {% endif %}
+        </td>
+        <td>
+          {% for i in r.issues if i.level != 'info' %}
+          <span class="chip {{ 'red' if i.code.startswith('DUP_') or i.level == 'error' else 'amber' }}">{{ i.code|isu }}</span>
+          {% endfor %}
+          {% for x in refs.get(r.id, []) %}
+          <span class="chip red">Duplikat dari {{ x }}</span>
+          {% endfor %}
+          {% if r.rules_status == 'lolos' and r.id not in refs %}
+          <span class="chip blue">Data lolos</span>
+          {% endif %}
+        </td>
+        <td>
+          <span class="pill p-{{ r.effective_status }}">{{ r.effective_status|stat }}</span>
+          {% if r.status == 'duplikat' and r.duplikat_dari %}
+          <div style="font-size:11px;color:#c2410c;margin-top:2px">Duplikat dari {{ r.duplikat_dari }}</div>
+          {% endif %}
+          {% if r.kerusakan_final %}
+          <div style="font-size:11px;font-weight:600;color:var(--ink);margin-top:2px">
+            Final: {{ r.kerusakan_final|kat }}
+          </div>
+          {% endif %}
+        </td>
+        <td style="white-space:nowrap">
+          {% if dups.get(r.id) and r.status == 'menunggu' %}
+          <form method="post" action="/laporan/{{ r.id }}/tolak-duplikat" style="display:inline" onsubmit="return confirm('Tolak laporan {{ r.id }} karena duplikat?')">
+            <button class="btn danger" style="padding:6px 10px;font-size:12px">Tolak (duplikat)</button>
+          </form>
+          {% endif %}
+          <a class="btn" style="padding:6px 12px;font-size:12px" href="/laporan/{{ r.id }}">
+            {{ 'Verifikasi' if r.status == 'menunggu' else 'Buka / Edit' }}
+          </a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" style="text-align:center;padding:24px;color:var(--mute)">Belum ada laporan yang sesuai.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

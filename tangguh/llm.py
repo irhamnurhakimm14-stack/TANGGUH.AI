@@ -1,12 +1,14 @@
-"""Generative AI: ringkasan situasi bencana dari data TERVERIFIKASI.
+"""Generative AI: ringkasan situasi bencana dari data TERVERIFIKASI skala nasional.
 
-Prinsip anti-halusinasi:
-  1. Semua angka dihitung dari database (build_facts), bukan oleh LLM.
-  2. LLM hanya menyusun kalimat dari fakta tersebut (temperature rendah).
-  3. Setelah LLM menjawab, setiap angka di teks dicek terhadap fakta. Bila ada angka
-     yang tidak berasal dari fakta -> jawaban dibuang, diganti ringkasan template.
-  4. Tanpa API key / gagal -> otomatis pakai ringkasan template (aplikasi tetap jalan).
-LLM gratis: Google Gemini API free tier (kunci di https://aistudio.google.com/apikey).
+Prinsip anti-halusinasi & perlindungan privasi:
+  1. HANYA laporan dengan status TERVERIFIKASI yang dihitung. Laporan menunggu, ditolak,
+     duplikat, atau perlu revisi DILARANG masuk ke ringkasan.
+  2. NIK, Nomor KK, dan identitas individu warga DILARANG dimasukkan ke prompt AI.
+  3. Semua angka dihitung dari database (build_facts), bukan diperkirakan oleh LLM.
+  4. LLM hanya menyusun kalimat dari fakta terhitung (temperature rendah).
+  5. Setelah LLM menjawab, setiap angka dicek terhadap fakta. Bila ada angka tidak sah ->
+     jawaban diganti ringkasan template otomatis.
+  6. Tanpa API key / gagal -> otomatis memakai ringkasan template.
 """
 from __future__ import annotations
 
@@ -20,38 +22,50 @@ from . import config
 
 KAT_LABEL = {"ringan": "rusak ringan", "sedang": "rusak sedang", "berat": "rusak berat", "hanyut": "hanyut/hilang"}
 
-SYSTEM_PROMPT = """Kamu adalah asisten penyusun laporan situasi pascabencana untuk BPBD/dinas terkait di Sumatera Barat.
+SYSTEM_PROMPT = """Kamu adalah asisten penyusun laporan situasi pascabencana tingkat nasional untuk BNPB/BPBD dan kementerian/lembaga terkait di Indonesia.
 ATURAN KETAT:
 1. Gunakan HANYA angka dan nama wilayah yang ada pada blok DATA TERVERIFIKASI. Jangan menambah, membulatkan, menghitung ulang, atau memperkirakan angka.
 2. Jika suatu informasi tidak ada di data, tulis "tidak tersedia di data". Jangan mengarang penyebab, korban jiwa, atau kebutuhan bantuan.
-3. Jangan menyebut nama atau NIK individu warga.
+3. Jangan pernah menyebut nama, NIK, atau nomor identitas individu warga (patuhi perlindungan data pribadi).
 4. Bahasa Indonesia formal, singkat, dan netral. Jangan memberi keputusan; ini bahan pertimbangan petugas.
 5. Format keluaran persis:
 RINGKASAN UMUM: (2-3 kalimat)
-KONDISI PER WILAYAH: (butir per kecamatan/nagari, sebutkan angka dari data)
+KONDISI PER WILAYAH: (butir per kecamatan/desa, sebutkan angka dari data)
 CATATAN: (1 kalimat bahwa data berasal dari laporan terverifikasi per tanggal pembuatan)
 """
 
 
 def build_facts(reports: list[dict]) -> dict:
-    """Hitung semua angka dari laporan terverifikasi."""
-    rows = [r for r in reports if r.get("status") == "terverifikasi"]
+    """Hitung semua angka HANYA dari laporan yang sah dan telah TERVERIFIKASI oleh admin.
+    Laporan berstatus ditolak, duplikat, draft, menunggu, atau perlu revisi otomatis disaring keluar."""
+    rows = [r for r in reports if r.get("status") == "terverifikasi" and r.get("status") not in ("ditolak", "duplikat", "draft")]
     kat = Counter((r.get("kerusakan_final") or "").strip().lower() for r in rows)
-    per_kec, per_nag, pen = Counter(), Counter(), Counter(r.get("penanganan") or "belum ditetapkan" for r in rows)
-    per_nag_kat: dict[str, Counter] = {}
+    per_kec, per_desa, pen = Counter(), Counter(), Counter(r.get("penanganan") or "belum ditetapkan" for r in rows)
+    per_desa_kat: dict[str, Counter] = {}
+
     for r in rows:
-        per_kec[r.get("kecamatan") or "-"] += 1
-        key = f"{r.get('nagari') or '-'} ({r.get('kecamatan') or '-'})"
-        per_nag[key] += 1
-        per_nag_kat.setdefault(key, Counter())[(r.get("kerusakan_final") or "").lower()] += 1
-    top = per_nag.most_common(1)[0] if per_nag else None
+        kec = r.get("kecamatan") or "-"
+        desa = r.get("desa") or r.get("nagari") or "-"
+        per_kec[kec] += 1
+        key = f"{desa} ({kec})"
+        per_desa[key] += 1
+        per_desa_kat.setdefault(key, Counter())[(r.get("kerusakan_final") or "").lower()] += 1
+
+    top = per_desa.most_common(1)[0] if per_desa else None
     return {
         "total_terverifikasi": len(rows),
         "per_kategori": {k: kat.get(k, 0) for k in KAT_LABEL},
         "per_kecamatan": dict(per_kec.most_common()),
-        "per_nagari": {k: {"jumlah": v, **{kk: per_nag_kat[k].get(kk, 0) for kk in KAT_LABEL}} for k, v in per_nag.most_common()},
+        "per_desa": {k: {"jumlah": v, **{kk: per_desa_kat[k].get(kk, 0) for kk in KAT_LABEL}} for k, v in per_desa.most_common()},
+        # Alias per_nagari untuk backward compatibility
+        "per_nagari": {k: {"jumlah": v, **{kk: per_desa_kat[k].get(kk, 0) for kk in KAT_LABEL}} for k, v in per_desa.most_common()},
         "penanganan": dict(pen),
         "wilayah_terbanyak": {"nama": top[0], "jumlah": top[1]} if top else None,
+        "items": [
+            {"id": r.get("id"), "kecamatan": r.get("kecamatan"), "desa": r.get("desa") or r.get("nagari"),
+             "kerusakan": r.get("kerusakan_final")}
+            for r in rows
+        ],
     }
 
 
@@ -72,7 +86,7 @@ def template_summary(f: dict) -> str:
         w = f["wilayah_terbanyak"]
         lines[0] += f" Wilayah dengan laporan terbanyak adalah {w['nama']} dengan {w['jumlah']} laporan."
     lines.append("KONDISI PER WILAYAH:")
-    for nama, d in list(f["per_nagari"].items())[:15]:
+    for nama, d in list(f["per_desa"].items())[:15]:
         det = ", ".join(f"{d[x]} {KAT_LABEL[x]}" for x in KAT_LABEL if d[x])
         lines.append(f"- {nama}: {d['jumlah']} rumah ({det}).")
     pen = ", ".join(f"{v} {k}" for k, v in f["penanganan"].items())
@@ -81,37 +95,48 @@ def template_summary(f: dict) -> str:
     return "\n".join(lines)
 
 
-def _call_gemini(prompt: str, timeout: int = 40) -> str:
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{config.GEMINI_MODEL}:generateContent"
-    body = {
-        "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
-        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.2, "maxOutputTokens": 900},
-    }
-    r = requests.post(url, json=body, headers={"x-goog-api-key": config.GEMINI_API_KEY}, timeout=timeout)
-    r.raise_for_status()
-    return r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+def summarize(facts: dict, caller=None) -> dict:
+    """Susun ringkasan dari fakta terverifikasi; fallback ke template bila LLM gagal/tidak valid."""
+    fallback = template_summary(facts)
+    if not facts["total_terverifikasi"]:
+        return {"text": fallback, "source": "template", "note": "Tanpa data terverifikasi."}
 
+    prompt = (
+        f"{SYSTEM_PROMPT}\n\nDATA TERVERIFIKASI (FAKTA):\n"
+        f"{json.dumps(facts, ensure_ascii=False, indent=2)}\n\n"
+        f"Susun ringkasan sesuai format."
+    )
 
-def summarize(facts: dict, use_llm: bool = True, caller=None) -> dict:
-    """Kembalikan {"text", "source": "gemini"|"template", "note"}.
-    `caller` (opsional) menggantikan pemanggilan Gemini, berguna untuk tes."""
-    fallback = {"text": template_summary(facts), "source": "template", "note": ""}
-    if not use_llm or not facts["total_terverifikasi"]:
-        return fallback
-    if caller is None and not config.GEMINI_API_KEY:
-        fallback["note"] = "GEMINI_API_KEY belum diisi; memakai ringkasan template."
-        return fallback
-    prompt = "DATA TERVERIFIKASI (JSON):\n" + json.dumps(facts, ensure_ascii=False, indent=1) + \
-             "\n\nSusun laporan situasi sesuai format."
-    try:
-        text = (caller or _call_gemini)(prompt)
-    except Exception as e:  # jaringan, kuota, dll.
-        fallback["note"] = f"LLM gagal ({type(e).__name__}); memakai ringkasan template."
-        return fallback
+    if caller is not None:
+        try:
+            text = caller(prompt).strip()
+        except Exception as e:
+            return {"text": fallback, "source": "template", "note": f"Panggilan AI gagal ({type(e).__name__})."}
+    elif not config.GEMINI_API_KEY:
+        return {"text": fallback, "source": "template", "note": "Tanpa API key atau data kosong."}
+    else:
+        url = (
+            f"https://generativelanguage.googleapis.com/v1beta/models/{config.GEMINI_MODEL}:generateContent"
+            f"?key={config.GEMINI_API_KEY}"
+        )
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 600},
+        }
+        try:
+            r = requests.post(url, json=payload, timeout=15)
+            r.raise_for_status()
+            text = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+        except Exception as e:
+            return {"text": fallback, "source": "template", "note": f"Panggilan AI gagal ({type(e).__name__})."}
+
+    # Anti-halusinasi angka: setiap angka di keluaran LLM harus ada di fakta
     allowed = _numbers_in(facts)
-    bad = sorted(n for n in set(re.findall(r"\d+", text)) if n not in allowed)
-    if bad:
-        fallback["note"] = f"Jawaban LLM dibuang karena memuat angka di luar data ({', '.join(bad[:5])}); memakai template."
-        return fallback
-    return {"text": text, "source": "gemini", "note": "Angka telah dicek terhadap database."}
+    hallucinated = set(re.findall(r"\b\d+\b", text)) - allowed
+    if hallucinated:
+        return {
+            "text": fallback,
+            "source": "template",
+            "note": f"AI menyebut angka di luar data ({', '.join(sorted(hallucinated))}); jawaban dibatalkan demi akurasi.",
+        }
+    return {"text": text, "source": "gemini", "note": "Disusun AI Gemini dari data terverifikasi dan tervalidasi."}

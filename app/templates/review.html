@@ -1,19 +1,104 @@
 {% extends "base.html" %}{% block body %}
-<h1>Verifikasi &amp; Rekap</h1><p class="sub">Tinjau laporan, perbaiki, lalu verifikasi. Hanya data terverifikasi masuk rekap dan ringkasan.</p>
-{% if c.temuan and st != 'temuan' %}<div class="queue-alert">⚠ {{ c.temuan }} laporan perlu perhatian admin: terdapat duplikasi data atau data yang belum benar. <a href="/verifikasi?status=temuan">Tinjau sekarang →</a></div>{% endif %}
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:8px">
+  <div>
+    <h1 style="margin:0 0 4px">Verifikasi &amp; Rekap</h1>
+    <p class="sub" style="margin:0">Tinjau laporan, periksa hasil lapangan &amp; rekomendasi AI, lalu verifikasi.</p>
+  </div>
+  {% if user_role == 'admin' %}
+  <div>
+    <a class="btn" href="/admin/dashboard">Buka Dashboard Admin &rarr;</a>
+  </div>
+  {% elif user_role == 'petugas' %}
+  <div>
+    <a class="btn" href="/petugas/dashboard">Buka Dashboard Petugas &rarr;</a>
+  </div>
+  {% endif %}
+</div>
+
+{% if c.temuan and st != 'temuan' %}
+<div class="queue-alert">
+  Perhatian: {{ c.temuan }} laporan perlu perhatian admin: terdapat duplikasi data atau data yang belum benar.
+  <a href="/verifikasi?status=temuan">Tinjau sekarang &rarr;</a>
+</div>
+{% endif %}
+
 <div class="tabs">
-<a class="btn {{ '' if not st else 'sec' }}" href="/verifikasi">Semua ({{ c.total or 0 }})</a>
-<a class="btn {{ '' if st=='temuan' else 'sec' }}" href="/verifikasi?status=temuan">⚠ Perlu dicek ({{ c.temuan or 0 }})</a>
-<a class="btn {{ '' if st=='menunggu' else 'sec' }}" href="/verifikasi?status=menunggu">Menunggu ({{ c.menunggu or 0 }})</a>
-<a class="btn {{ '' if st=='terverifikasi' else 'sec' }}" href="/verifikasi?status=terverifikasi">Terverifikasi ({{ c.terverifikasi or 0 }})</a>
-<a class="btn sec" href="/draft">Draft ({{ c.draft or 0 }})</a></div>
-<div class="card"><table><tr><th>ID</th><th>Pemilik</th><th>Lokasi</th><th>AI</th><th>Final</th><th>Hasil pemeriksaan data</th><th>Status</th><th>Aksi</th></tr>
-{% for r in rows %}<tr class="{{ 'row-alert' if r.id in urgent }}"><td><a href="/laporan/{{ r.id }}">{{ r.id }}</a></td><td>{{ r.nama }}</td><td>{{ r.nagari }}{% if r.kecamatan and r.kecamatan != r.nagari %}, {{ r.kecamatan }}{% endif %}</td>
-<td>{{ (r.kerusakan_ai|kat) if r.kerusakan_ai else '-' }}</td><td>{{ (r.kerusakan_final|kat) if r.kerusakan_final else '-' }}</td>
-<td>{% for i in r.issues if i.level != 'info' %}<span class="chip {{ 'red' if i.code.startswith('DUP_') or i.level == 'error' else 'amber' }}">{{ i.code|isu }}{% if i.ref_id %} · {{ i.ref_id }}{% endif %}</span>{% endfor %}
-{% for x in refs.get(r.id, []) %}<span class="chip red">Ada duplikasinya · {{ x }}</span>{% endfor %}
-{% if r.rules_status == 'lolos' and r.id not in refs %}<span class="chip blue">Data lolos</span>{% endif %}</td>
-<td><span class="pill p-{{ r.status }}">{{ r.status|stat }}</span></td>
-<td style="white-space:nowrap">{% if dups.get(r.id) and r.status == 'menunggu' %}<form method="post" action="/laporan/{{ r.id }}/tolak-duplikat" style="display:inline" onsubmit="return confirm('Tolak laporan {{ r.id }} karena duplikat dari {{ dups[r.id]|join(', ') }}?')"><button class="btn danger" style="padding:6px 10px">Tolak (duplikat)</button></form> {% endif %}<a class="btn sec" style="padding:6px 10px" href="/laporan/{{ r.id }}">{{ 'Periksa' if r.id in urgent else 'Buka' }}</a></td></tr>
-{% else %}<tr><td colspan="8">Belum ada data.</td></tr>{% endfor %}</table></div>
+  <a class="btn {{ '' if not st else 'sec' }}" href="/verifikasi">Semua ({{ c.total or 0 }})</a>
+  <a class="btn {{ '' if st=='temuan' else 'sec' }}" href="/verifikasi?status=temuan">Perlu dicek ({{ c.temuan or 0 }})</a>
+  <a class="btn {{ '' if st=='menunggu' else 'sec' }}" href="/verifikasi?status=menunggu">Menunggu ({{ c.menunggu or 0 }})</a>
+  <a class="btn {{ '' if st=='terverifikasi' else 'sec' }}" href="/verifikasi?status=terverifikasi">Terverifikasi ({{ c.terverifikasi or 0 }})</a>
+  <a class="btn {{ '' if st=='perlu_revisi' else 'sec' }}" href="/verifikasi?status=perlu_revisi">Perlu Revisi ({{ c.perlu_revisi or 0 }})</a>
+  <a class="btn {{ '' if st=='ditolak' else 'sec' }}" href="/verifikasi?status=ditolak">Ditolak ({{ c.ditolak or 0 }})</a>
+  <a class="btn {{ '' if st=='duplikat' else 'sec' }}" href="/verifikasi?status=duplikat">Duplikat ({{ c.duplikat or 0 }})</a>
+  <a class="btn {{ '' if st=='arsip' else 'sec' }}" href="/verifikasi?status=arsip">Arsip ({{ c.arsip or 0 }})</a>
+  <a class="btn sec" href="/draft">Draft ({{ c.draft or 0 }})</a>
+</div>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Pemilik</th>
+        <th>Lokasi</th>
+        <th>AI</th>
+        <th>Petugas</th>
+        <th>Final</th>
+        <th>Hasil pemeriksaan data</th>
+        <th>Status</th>
+        <th>Aksi</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr class="{{ 'row-alert' if r.id in urgent }}">
+        <td><a href="/laporan/{{ r.id }}"><b>{{ r.id }}</b></a></td>
+        <td>
+          <b>{{ r.nama }}</b><br>
+          <small class="sub">{{ r.nik|mask_nik }}</small>
+        </td>
+        <td>{{ r|lokasi }}</td>
+        <td>{{ (r.kerusakan_ai|kat) if r.kerusakan_ai else '-' }}</td>
+        <td>
+          {% if r.status_pemeriksaan == 'diteruskan' %}
+          <span class="pill p-diteruskan">Diteruskan</span>
+          {% elif r.status_pemeriksaan == 'sedang_diperiksa' %}
+          <span class="pill p-sedang_diperiksa">Sedang Periksa</span>
+          {% else %}
+          <span class="pill p-menunggu_pemeriksaan">Belum Periksa</span>
+          {% endif %}
+        </td>
+        <td>{{ (r.kerusakan_final|kat) if r.kerusakan_final else '-' }}</td>
+        <td>
+          {% for i in r.issues if i.level != 'info' %}
+          <span class="chip {{ 'red' if i.code.startswith('DUP_') or i.level == 'error' else 'amber' }}">{{ i.code|isu }}{% if i.ref_id %} &middot; {{ i.ref_id }}{% endif %}</span>
+          {% endfor %}
+          {% for x in refs.get(r.id, []) %}
+          <span class="chip red">Ada duplikasinya &middot; {{ x }}</span>
+          {% endfor %}
+          {% if r.rules_status == 'lolos' and r.id not in refs %}
+          <span class="chip blue">Data lolos</span>
+          {% endif %}
+        </td>
+        <td>
+          <span class="pill p-{{ r.effective_status }}">{{ r.effective_status|stat }}</span>
+          {% if r.status == 'duplikat' and r.duplikat_dari %}
+          <div style="font-size:11px;color:#c2410c;margin-top:2px">Duplikat dari {{ r.duplikat_dari }}</div>
+          {% endif %}
+        </td>
+        <td style="white-space:nowrap">
+          {% if dups.get(r.id) and r.status == 'menunggu' and user_role != 'petugas' %}
+          <form method="post" action="/laporan/{{ r.id }}/tolak-duplikat" style="display:inline" onsubmit="return confirm('Tolak laporan {{ r.id }} karena duplikat?')">
+            <button class="btn danger" style="padding:6px 10px">Tolak (duplikat)</button>
+          </form>
+          {% endif %}
+          <a class="btn sec" style="padding:6px 10px" href="/laporan/{{ r.id }}">{{ 'Periksa' if r.id in urgent else 'Buka' }}</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" style="text-align:center;padding:24px;color:var(--mute)">Belum ada data.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 {% endblock %}

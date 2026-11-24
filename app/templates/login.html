@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Login Petugas &amp; Admin - TANGGUH.AI{% endblock %}
+{% block body %}
+<div class="login-container">
+  <div class="card">
+    <h2 style="margin:0 0 4px">Masuk ke TANGGUH.AI</h2>
+    <p class="sub">Portal login petugas lapangan dan administrator pascabencana.</p>
+
+    <form method="post" action="{{ url_for('login') }}">
+      {% if request.args.get('next') %}
+      <input type="hidden" name="next" value="{{ request.args.get('next') }}">
+      {% endif %}
+
+      <div>
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" value="{{ username or '' }}" required autofocus autocomplete="username" placeholder="Masukkan username">
+      </div>
+
+      <div style="margin-top:12px">
+        <label for="password">Password</label>
+        <div class="pwd-wrap">
+          <input type="password" id="password" name="password" required autocomplete="current-password" placeholder="Masukkan password">
+          <button type="button" class="btn-pwd-toggle" id="toggleBtn" onclick="togglePassword()">Tampilkan</button>
+        </div>
+      </div>
+
+      <div style="margin-top:18px">
+        <button type="submit" class="btn" style="width:100%;padding:10px">Masuk</button>
+      </div>
+    </form>
+
+    <div class="demo-box" style="margin-top:18px">
+      <h4 style="margin:0 0 8px;font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.05em">Akun Pengujian (Demo):</h4>
+      <div class="demo-grid">
+        <div class="demo-card" onclick="fillAccount('admin', 'admin123')">
+          <b>Admin</b><br>
+          <small style="color:var(--mute)">User: <code>admin</code><br>Pass: <code>admin123</code></small><br>
+          <span class="chip" style="margin-top:4px">Verifikasi Akhir</span>
+        </div>
+        <div class="demo-card" onclick="fillAccount('petugas', 'petugas123')">
+          <b>Petugas</b><br>
+          <small style="color:var(--mute)">User: <code>petugas</code><br>Pass: <code>petugas123</code></small><br>
+          <span class="chip" style="margin-top:4px">Pemeriksaan Awal</span>
+        </div>
+      </div>
+      <p style="font-size:11px;color:var(--mute);margin:8px 0 0">
+        Klik kartu akun di atas untuk mengisi formulir otomatis.
+      </p>
+    </div>
+  </div>
+</div>
+
+<script>
+function togglePassword() {
+  var p = document.getElementById('password');
+  var btn = document.getElementById('toggleBtn');
+  if (p.type === 'password') {
+    p.type = 'text';
+    btn.textContent = 'Sembunyikan';
+  } else {
+    p.type = 'password';
+    btn.textContent = 'Tampilkan';
+  }
+}
+
+function fillAccount(u, p) {
+  document.getElementById('username').value = u;
+  document.getElementById('password').value = p;
+}
+</script>
+{% endblock %}

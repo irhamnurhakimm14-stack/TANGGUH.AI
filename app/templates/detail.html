@@ -1,30 +1,342 @@
 {% extends "base.html" %}{% block body %}
-<h1>Laporan {{ r.id }}</h1><p class="sub">{{ r.created_at }} · <span class="pill p-{{r.status}}">{{ r.status|stat }}</span> <span class="pill p-{{r.rules_status}}">Pemeriksaan data: {{ r.rules_status|cek }}</span></p>
-{% set cmp_fields = [('nama','Nama'),('nik','NIK'),('no_kk','No. KK'),('kecamatan','Kecamatan'),('nagari','Nagari'),('jorong','Jorong'),('deskripsi','Deskripsi'),('created_at','Dikirim')] %}
-{% if dups %}<div class="alert-dup"><h3>⚠ TERDAPAT DUPLIKASI DATA dengan {{ dups|map('first')|join(', ') }}</h3>
-<p style="margin:0">Laporan ini memiliki data yang sama dengan laporan lain. Sistem <b>tidak menghapus atau menolak sendiri</b>; keputusan ada pada admin. <b>Tolak</b> bila benar-benar ganda. Pilih <b>Bukan duplikat</b> bila ini laporan lanjutan (mis. perkembangan kerusakan).</p>
-{% for ref, o in dups %}<table class="cmp"><tr><th></th><th>Laporan ini ({{ r.id }})</th><th><a href="/laporan/{{ ref }}">{{ ref }}</a> <span class="pill p-{{ o.status }}">{{ o.status|stat }}</span></th></tr>
-{% for k,l in cmp_fields %}<tr><th>{{ l }}</th><td class="{{ 'same' if r[k] and r[k]==o[k] and k!='created_at' else 'diff' }}">{{ r[k] or '-' }}</td><td class="{{ 'same' if r[k] and r[k]==o[k] and k!='created_at' else 'diff' }}">{{ o[k] or '-' }}</td></tr>{% endfor %}</table>{% endfor %}
-<small>Sel merah = isi sama persis.</small>
-{% if r.status == 'menunggu' %}<div class="btns">
-<form method="post" action="/laporan/{{ r.id }}/tolak-duplikat" onsubmit="return confirm('Tolak laporan {{ r.id }} karena duplikat?')"><button class="btn danger">Tolak laporan ini (duplikat)</button></form>
-<form method="post" action="/laporan/{{ r.id }}/bukan-duplikat"><button class="btn sec">Bukan duplikat (laporan lanjutan)</button></form></div>{% endif %}</div>
-{% elif referenced_by %}<div class="alert-dup info"><h3>ℹ Ada laporan lain dengan data yang sama</h3>
-<p style="margin:0">Laporan {% for x in referenced_by %}<a href="/laporan/{{ x }}">{{ x }}</a>{{ ', ' if not loop.last }}{% endfor %} memiliki data yang sama dengan laporan ini. Periksa keduanya sebelum verifikasi.</p></div>{% endif %}
-<div class="grid2"><div>
-<div class="card"><h3 style="margin-top:0">Data laporan</h3><table>
-{% for k,l in [('nama','Nama'),('nik','NIK'),('no_kk','No. KK'),('kecamatan','Kecamatan'),('nagari','Nagari'),('jorong','Jorong'),('koordinat','Koordinat'),('deskripsi','Deskripsi')] %}<tr><th>{{l}}</th><td>{{ r[k] or '-' }}</td></tr>{% endfor %}</table></div>
-<div class="card"><h3 style="margin-top:0">Hasil pemeriksaan data</h3>
-{% for i in r.issues %}<div class="iss {{i.level}}"><b>{{ i.code|isu }}</b> — {{ i.message }}{% if i.ref_id %} <a href="/laporan/{{i.ref_id}}">lihat {{i.ref_id}}</a>{% endif %}</div>{% else %}<div class="iss info" style="background:var(--ok-bg);color:var(--ok)">Tidak ada temuan.</div>{% endfor %}</div></div>
-<div>{% if r.foto %}<div class="card"><img class="thumb" src="/foto/{{ r.foto }}" alt="foto kerusakan"></div>{% endif %}
-<div class="ai"><small>HASIL KLASIFIKASI AI (rekomendasi)</small>
-{% if r.kerusakan_ai %}<div class="big">{{ r.kerusakan_ai|kat }}</div><div class="bar"><i style="width:{{ (r.ai_confidence*100)|round }}%"></i></div><small>Keyakinan {{ (r.ai_confidence*100)|round }}%</small>
-{% else %}<p>Belum ada rekomendasi AI (model belum dipasang atau tidak ada foto). Tentukan manual.</p>{% endif %}</div>
-<form class="card" method="post" action="/laporan/{{ r.id }}/verifikasi" style="margin-top:16px"><h3 style="margin-top:0">Keputusan admin</h3>
-<label>Kategori kerusakan final</label><select name="kerusakan_final"><option value="">- pilih -</option>
-{% for k in ['ringan','sedang','berat','hanyut'] %}<option value="{{k}}" {{ 'selected' if (r.kerusakan_final or r.kerusakan_ai)==k }}>{{ k|kat }}</option>{% endfor %}</select>
-<label>Penanganan</label><select name="penanganan">{% for p in ['','Rehabilitasi','Relokasi'] %}<option {{ 'selected' if r.penanganan==p }}>{{p}}</option>{% endfor %}</select>
-<label>Catatan</label><textarea name="catatan">{{ r.catatan_admin or '' }}</textarea>
-<label>Status</label><select name="status">{% for s in ['menunggu','terverifikasi','ditolak'] %}<option {{ 'selected' if r.status==s }}>{{s}}</option>{% endfor %}</select>
-<p><button class="btn">Simpan keputusan</button></p></form></div></div>
+<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:8px">
+  <div>
+    <h1 style="margin:0 0 4px">Laporan {{ r.id }}</h1>
+    <p class="sub" style="margin:0">
+      Dikirim: {{ r.created_at[:16]|replace('T', ' ') }} &middot; 
+      <span class="pill p-{{ r.effective_status }}">{{ r.effective_status|stat }}</span> 
+      <span class="pill p-{{ r.rules_status }}">Data: {{ r.rules_status|cek }}</span>
+      {% if r.duplikat_dari %}
+      <span class="pill p-duplikat">Duplikat dari {{ r.duplikat_dari }}</span>
+      {% endif %}
+      {% if r.is_archived %}
+      <span class="pill p-arsip">Diarsipkan</span>
+      {% endif %}
+    </p>
+  </div>
+  <div style="display:flex;gap:8px">
+    {% if user_role == 'petugas' %}
+    <a class="btn sec" href="/petugas/laporan/{{ r.id }}">Buka Form Pemeriksaan Petugas &rarr;</a>
+    <a class="btn sec" href="/petugas/dashboard">&larr; Dashboard Petugas</a>
+    {% elif user_role == 'admin' %}
+    <form method="post" action="/laporan/{{ r.id }}/arsip" style="display:inline">
+      <button class="btn sec" style="padding:6px 10px;font-size:12px">{{ 'Buka Arsip' if r.is_archived else 'Arsipkan Laporan' }}</button>
+    </form>
+    <a class="btn sec" href="/admin/dashboard">&larr; Dashboard Admin</a>
+    {% else %}
+    <a class="btn sec" href="/verifikasi">&larr; Rekap Laporan</a>
+    {% endif %}
+  </div>
+</div>
+
+{% if r.duplikat_dari %}
+<div class="card" style="border-left:4px solid #6b21a8;background:#f3e8ff;padding:12px 16px;margin-bottom:14px">
+  <h4 style="margin:0 0 4px;color:#6b21a8">Status: Terkonfirmasi Duplikat</h4>
+  <p style="margin:0;font-size:13px">
+    Laporan ini telah ditetapkan sebagai duplikat dari laporan utama: <b><a href="/laporan/{{ r.duplikat_dari }}">{{ r.duplikat_dari }}</a></b>.
+    {% if r.catatan_admin %}<br>Catatan Admin: <i>&ldquo;{{ r.catatan_admin }}&rdquo;</i>{% endif %}
+  </p>
+</div>
+{% endif %}
+
+{% if r.status == 'ditolak' %}
+<div class="card" style="border-left:4px solid var(--err);background:var(--err-bg);padding:12px 16px;margin-bottom:14px">
+  <h4 style="margin:0 0 4px;color:var(--err)">Status: Laporan Ditolak</h4>
+  <p style="margin:0;font-size:13px">
+    Laporan ini telah ditolak oleh Admin dan diarsipkan.
+    {% if r.catatan_admin %}<br>Alasan Penolakan: <b>&ldquo;{{ r.catatan_admin }}&rdquo;</b>{% endif %}
+  </p>
+</div>
+{% endif %}
+
+{% set cmp_fields = [('nama','Nama'),('nik','NIK'),('no_kk','No. KK'),('provinsi','Provinsi'),('kabupaten','Kabupaten/Kota'),('kecamatan','Kecamatan'),('desa','Desa/Kelurahan'),('dusun','Dusun/Lingkungan'),('deskripsi','Deskripsi'),('created_at','Dikirim')] %}
+{% if dups %}
+<div class="alert-dup">
+  <h3>TERDAPAT DUPLIKASI DATA dengan {{ dups|map('first')|join(', ') }}</h3>
+  <p style="margin:0 0 6px">
+    Sistem mendeteksi kemiripan data dengan laporan lain. Sistem <b>tidak menghapus atau menolak secara otomatis</b>; keputusan berada pada Admin.
+    Tolak bila tidak valid, atau tetapkan status <b>Duplikat</b> dan hubungkan dengan laporan utama.
+  </p>
+  {% for ref, o in dups %}
+  <p style="margin:4px 0;font-size:12px;color:#b91c1c"><b>Terindikasi duplikat dari laporan {{ ref }}</b> ({{ o.nama }}, status: {{ o.effective_status|stat }})</p>
+  <table class="cmp">
+    <tr><th></th><th>Laporan ini ({{ r.id }})</th><th><a href="/laporan/{{ ref }}">{{ ref }}</a> <span class="pill p-{{ o.effective_status }}">{{ o.effective_status|stat }}</span></th></tr>
+    {% for k,l in cmp_fields %}
+    <tr><th>{{ l }}</th><td class="{{ 'same' if r[k] and r[k]==o[k] and k!='created_at' else 'diff' }}">{{ r[k] or '-' }}</td><td class="{{ 'same' if r[k] and r[k]==o[k] and k!='created_at' else 'diff' }}">{{ o[k] or '-' }}</td></tr>
+    {% endfor %}
+  </table>
+  {% endfor %}
+  <small>Sel merah = isi data sama persis.</small>
+
+  {% if r.status in ('menunggu', 'menunggu_pemeriksaan', 'sedang_diperiksa', 'diteruskan') and user_role != 'petugas' %}
+  <div class="btns" style="margin-top:10px">
+    {% for ref, o in dups %}
+    <form method="post" action="/laporan/{{ r.id }}/duplikat" style="display:inline">
+      <input type="hidden" name="duplikat_dari" value="{{ ref }}">
+      <input type="hidden" name="catatan" value="Dikonfirmasi admin sebagai duplikat dari laporan {{ ref }}.">
+      <button class="btn sec" style="border-color:#6b21a8;color:#6b21a8" onclick="return confirm('Tetapkan laporan {{ r.id }} sebagai duplikat dari {{ ref }}?')">Tetapkan Duplikat dari {{ ref }}</button>
+    </form>
+    {% endfor %}
+    <form method="post" action="/laporan/{{ r.id }}/tolak-duplikat" onsubmit="return confirm('Tolak laporan {{ r.id }} karena duplikat?')">
+      <button class="btn danger">Tolak laporan ini (duplikat)</button>
+    </form>
+    <form method="post" action="/laporan/{{ r.id }}/bukan-duplikat">
+      <button class="btn sec">Bukan duplikat (laporan lanjutan/berbeda)</button>
+    </form>
+  </div>
+  {% endif %}
+</div>
+{% elif referenced_by %}
+<div class="alert-dup info">
+  <h3>Ada laporan lain dengan data yang sama</h3>
+  <p style="margin:0">Laporan {% for x in referenced_by %}<a href="/laporan/{{ x }}">{{ x }}</a>{{ ', ' if not loop.last }}{% endfor %} memiliki data identik atau sangat mirip dengan laporan ini.</p>
+</div>
+{% endif %}
+
+<div class="grid2">
+  <div>
+    <div class="card">
+      <h3 style="margin-top:0">Data Laporan &amp; Wilayah</h3>
+      <table>
+        <tr><th style="width:140px">ID Laporan</th><td><b>{{ r.id }}</b></td></tr>
+        <tr><th>Nama Pemilik / Pelapor</th><td><b>{{ r.nama or '-' }}</b></td></tr>
+        <tr>
+          <th>NIK</th>
+          <td>
+            {% if is_logged_in %}
+            <code>{{ r.nik or '-' }}</code> <small style="color:var(--mute)">(Akses Petugas/Admin)</small>
+            {% else %}
+            <code>{{ r.nik|mask_nik }}</code> <small style="color:var(--mute)">(Disensor)</small>
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <th>Nomor KK</th>
+          <td>
+            {% if is_logged_in %}
+            <code>{{ r.no_kk or '-' }}</code>
+            {% else %}
+            <code>{{ r.no_kk|mask_kk }}</code>
+            {% endif %}
+          </td>
+        </tr>
+        <tr><th>Provinsi</th><td>{{ r.provinsi or '-' }}</td></tr>
+        <tr><th>Kabupaten / Kota</th><td>{{ r.kabupaten or '-' }}</td></tr>
+        <tr><th>Kecamatan</th><td>{{ r.kecamatan or '-' }}</td></tr>
+        <tr><th>Desa / Kelurahan</th><td>{{ r.desa or r.nagari or '-' }}</td></tr>
+        {% if r.dusun or r.jorong %}
+        <tr><th>Dusun / Lingkungan</th><td>{{ r.dusun or r.jorong }}</td></tr>
+        {% endif %}
+        {% if r.rt_rw %}
+        <tr><th>RT / RW</th><td>{{ r.rt_rw }}</td></tr>
+        {% endif %}
+        <tr><th>Koordinat GPS</th><td>{{ r.koordinat or '-' }}</td></tr>
+        <tr><th>Deskripsi Kerusakan</th><td>{{ r.deskripsi or '-' }}</td></tr>
+      </table>
+    </div>
+
+    <!-- Hasil Pemeriksaan Petugas Lapangan -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+        <h3 style="margin:0">Hasil Pemeriksaan Petugas Lapangan</h3>
+        <span class="pill {{ 'p-diteruskan' if r.status_pemeriksaan=='diteruskan' else ('p-sedang_diperiksa' if r.status_pemeriksaan=='sedang_diperiksa' else 'p-menunggu_pemeriksaan') }}">
+          {{ r.status_pemeriksaan|stat_periksa }}
+        </span>
+      </div>
+      <table>
+        <tr>
+          <th style="width:130px">Petugas</th>
+          <td><b>{{ r.petugas_nama or 'Belum ada catatan pemeriksaan' }}</b></td>
+        </tr>
+        <tr>
+          <th>Waktu Periksa</th>
+          <td>{{ r.waktu_pemeriksaan_petugas[:16]|replace('T', ' ') if r.waktu_pemeriksaan_petugas else '-' }}</td>
+        </tr>
+        <tr>
+          <th>Catatan Petugas</th>
+          <td>
+            {% if r.catatan_petugas %}
+            <div style="background:#f8fafc;padding:8px 12px;border-radius:6px;border:1px solid var(--line);font-style:italic">
+              &ldquo;{{ r.catatan_petugas }}&rdquo;
+            </div>
+            {% else %}
+            <span style="color:var(--mute)">Belum ada catatan dari petugas lapangan.</span>
+            {% endif %}
+          </td>
+        </tr>
+      </table>
+      {% if user_role == 'petugas' %}
+      <div style="margin-top:10px">
+        <a class="btn" style="padding:6px 12px;font-size:12px" href="/petugas/laporan/{{ r.id }}">
+          Isi / Perbarui Catatan Petugas
+        </a>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0">Hasil pemeriksaan data</h3>
+      {% for i in r.issues %}
+      <div class="iss {{ i.level }}"><b>{{ i.code|isu }}</b> — {{ i.message }}{% if i.ref_id %} <a href="/laporan/{{ i.ref_id }}">lihat {{ i.ref_id }}</a>{% endif %}</div>
+      {% else %}
+      <div class="iss info" style="background:var(--ok-bg);color:var(--ok)">Tidak ada temuan. Format data valid.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div>
+    {% if r.foto %}
+    <div class="card">
+      <h3 style="margin-top:0">Foto Kerusakan Bangunan</h3>
+      <a href="/foto/{{ r.foto }}" target="_blank">
+        <img class="thumb" src="/foto/{{ r.foto }}" alt="foto kerusakan bangunan" style="max-height:280px;object-fit:cover;width:100%">
+      </a>
+    </div>
+    {% endif %}
+
+    <div class="ai">
+      <small style="color:var(--mute);font-weight:700">HASIL KLASIFIKASI AI (rekomendasi)</small>
+      {% if r.kerusakan_ai %}
+      <div class="big">{{ r.kerusakan_ai|kat }}</div>
+      <div class="bar"><i style="width:{{ (r.ai_confidence*100)|round }}%"></i></div>
+      <small style="display:block;margin-top:4px">Keyakinan model: <b>{{ (r.ai_confidence*100)|round }}%</b></small>
+      {% else %}
+      <p style="margin:6px 0;color:var(--mute)">Belum ada rekomendasi AI (model belum dipasang atau tidak ada foto). Tentukan manual.</p>
+      {% endif %}
+      <div style="margin-top:8px;font-size:11px;color:var(--mute);line-height:1.4">
+        * Model CNN mengklasifikasi 3 kelas (Rusak Ringan, Rusak Sedang, Rusak Berat). Kategori Hanyut/Hilang dinilai langsung oleh verifikator manusia.
+      </div>
+    </div>
+
+    {% if user_role == 'petugas' %}
+    <!-- Petugas tidak memiliki hak verifikasi akhir -->
+    <div class="card" style="margin-top:16px;border-left:4px solid var(--teal)">
+      <h3 style="margin-top:0">Status Keputusan Admin</h3>
+      <p>Status saat ini: <span class="pill p-{{ r.effective_status }}">{{ r.effective_status|stat }}</span></p>
+      {% if r.kerusakan_final %}
+      <p>Kategori Kerusakan Final: <b>{{ r.kerusakan_final|kat }}</b></p>
+      {% endif %}
+      {% if r.penanganan %}
+      <p>Rencana Penanganan: <b>{{ r.penanganan }}</b></p>
+      {% endif %}
+      {% if r.catatan_admin %}
+      <p>Catatan Admin: <i>&ldquo;{{ r.catatan_admin }}&rdquo;</i></p>
+      {% endif %}
+      <div class="disc" style="margin-top:12px;margin-bottom:10px;font-size:12px">
+        Petugas lapangan tidak memiliki hak untuk verifikasi akhir. Gunakan form pemeriksaan awal petugas untuk memberikan catatan lapangan.
+      </div>
+      <div>
+        <a class="btn" style="width:100%;text-align:center" href="/petugas/laporan/{{ r.id }}">Buka Form Pemeriksaan Petugas</a>
+      </div>
+    </div>
+    {% else %}
+    <!-- Form Verifikasi Keputusan Akhir Admin -->
+    <form class="card" method="post" action="/laporan/{{ r.id }}/verifikasi" style="margin-top:16px" onsubmit="return validateAdminForm()">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <h3 style="margin:0">Keputusan akhir admin</h3>
+        <span class="pill p-admin">Admin</span>
+      </div>
+      <p style="font-size:12px;color:var(--mute);margin:0 0 10px">
+        Tinjau foto, rekomendasi AI, dan catatan pemeriksaan petugas sebelum menetapkan keputusan.
+      </p>
+
+      <label for="kerusakanFinal">Kategori kerusakan final</label>
+      <select id="kerusakanFinal" name="kerusakan_final">
+        <option value="">- pilih kategori kerusakan -</option>
+        {% for k in ['ringan','sedang','berat','hanyut'] %}
+        <option value="{{ k }}" {{ 'selected' if (r.kerusakan_final or r.kerusakan_ai)==k }}>
+          {{ k|kat }}{% if k == 'hanyut' %} (Penilaian Manusia){% endif %}
+        </option>
+        {% endfor %}
+      </select>
+      <small style="font-size:11px;color:var(--mute);display:block;margin-top:2px">
+        * Kategori Hanyut/Hilang tidak berasal dari prediksi CNN; gunakan jika bangunan tersapu banjir/hilang.
+      </small>
+
+      <label for="penanganan" style="margin-top:12px">Penanganan</label>
+      <select id="penanganan" name="penanganan">
+        {% for p in ['','Rehabilitasi','Relokasi','Bantuan Material'] %}
+        <option value="{{ p }}" {{ 'selected' if r.penanganan==p }}>{{ p or '- Belum ditentukan -' }}</option>
+        {% endfor %}
+      </select>
+
+      <label for="adminStatus" style="margin-top:12px">Status keputusan</label>
+      <select id="adminStatus" name="status" onchange="toggleCatatanRequirement()" required>
+        <option value="terverifikasi" {{ 'selected' if r.status=='terverifikasi' or (r.status=='menunggu' and r.rules_status=='lolos') }}>Terverifikasi</option>
+        <option value="perlu_revisi" {{ 'selected' if r.status=='perlu_revisi' }}>Perlu Revisi (Cek Ulang)</option>
+        <option value="ditolak" {{ 'selected' if r.status=='ditolak' }}>Ditolak</option>
+        <option value="duplikat" {{ 'selected' if r.status=='duplikat' }}>Duplikat (Tandai Duplikat)</option>
+        <option value="menunggu" {{ 'selected' if r.status=='menunggu' }}>Menunggu verifikasi</option>
+      </select>
+
+      <div id="duplikatDariWrap" style="margin-top:10px;display:none">
+        <label for="duplikatDariInput">Hubungkan ke ID Laporan Utama *</label>
+        <input id="duplikatDariInput" name="duplikat_dari" value="{{ r.duplikat_dari or (dups[0][0] if dups else '') }}" placeholder="Contoh: TG-001">
+        <small style="font-size:11px;color:var(--mute)">Masukkan ID laporan yang menjadi rujukan data asli.</small>
+      </div>
+
+      <label for="adminCatatan" style="margin-top:12px">
+        Catatan / Alasan Keputusan 
+        <span id="catatanWajibBadge" style="color:var(--err);display:none;font-size:11px">*(Wajib jika Ditolak, Revisi, atau Duplikat)</span>
+      </label>
+      <textarea id="adminCatatan" name="catatan" placeholder="Berikan catatan verifikasi atau alasan bila ditolak/perlu revisi/duplikat...">{{ r.catatan_admin or '' }}</textarea>
+
+      <div style="margin-top:16px">
+        <button type="submit" class="btn" style="width:100%">Simpan keputusan</button>
+      </div>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+function toggleCatatanRequirement() {
+  var st = document.getElementById('adminStatus');
+  var badge = document.getElementById('catatanWajibBadge');
+  var txt = document.getElementById('adminCatatan');
+  var dupWrap = document.getElementById('duplikatDariWrap');
+  if (!st || !badge) return;
+  if (st.value === 'ditolak' || st.value === 'perlu_revisi' || st.value === 'duplikat') {
+    badge.style.display = 'inline';
+    txt.setAttribute('required', 'required');
+  } else {
+    badge.style.display = 'none';
+    txt.removeAttribute('required');
+  }
+  if (dupWrap) {
+    dupWrap.style.display = (st.value === 'duplikat') ? 'block' : 'none';
+  }
+}
+
+function validateAdminForm() {
+  var st = document.getElementById('adminStatus');
+  var txt = document.getElementById('adminCatatan');
+  var kat = document.getElementById('kerusakanFinal');
+  var dupInp = document.getElementById('duplikatDariInput');
+  if (st && (st.value === 'ditolak' || st.value === 'perlu_revisi' || st.value === 'duplikat')) {
+    if (!txt.value.trim()) {
+      alert('Admin wajib memberikan catatan/alasan untuk keputusan ' + st.value + '.');
+      txt.focus();
+      return false;
+    }
+  }
+  if (st && st.value === 'duplikat') {
+    if (!dupInp || !dupInp.value.trim()) {
+      alert('Tentukan ID laporan utama yang menjadi rujukan duplikat.');
+      if (dupInp) dupInp.focus();
+      return false;
+    }
+  }
+  if (st && st.value === 'terverifikasi') {
+    if (!kat || !kat.value) {
+      alert('Pilih kategori kerusakan final sebelum memverifikasi laporan.');
+      if (kat) kat.focus();
+      return false;
+    }
+  }
+  return true;
+}
+
+toggleCatatanRequirement();
+</script>
 {% endblock %}

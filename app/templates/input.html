@@ -6,6 +6,7 @@
 <div class="grid2">
 <form id="lapform" class="card" method="post" enctype="multipart/form-data" data-draft="{{ f.draft_id or 'baru' }}">
 <input type="hidden" name="draft_id" value="{{ f.draft_id }}">
+{% if demo_mode %}<input type="hidden" name="demo_photo" value=""><div class="disc"><label><input type="checkbox" name="demo_consent" required style="width:auto"> Saya hanya memakai identitas, lokasi, deskripsi dan foto fiktif untuk simulasi. Foto disimpan di browser ini, tidak di server.</label></div>{% endif %}
 {% if f.draft_id %}<div class="disc">Melanjutkan draft <b>{{ f.draft_id }}</b>.</div>{% endif %}
 
 <label>Nama Pemilik / Pelapor *</label>
@@ -59,7 +60,7 @@
   <label>Koordinat GPS (Opsional)</label>
   <div style="display:flex;gap:6px">
     <input id="koordinatInput" name="koordinat" value="{{ f.koordinat or '' }}" placeholder="-6.2088 106.8456 atau 0.95393 S 100.62134 E">
-    <button type="button" class="btn sec" style="padding:6px 12px;font-size:12px;white-space:nowrap" onclick="getGPSLocation()">Lokasi Perangkat</button>
+    <button type="button" class="btn sec" style="padding:6px 12px;font-size:12px;white-space:nowrap" onclick="getGPSLocation()" {% if demo_mode %}disabled title="GPS nyata dinonaktifkan pada demo"{% endif %}>Lokasi Perangkat</button>
   </div>
   <small id="gpsStatus" style="color:var(--mute);font-size:11px;display:block;margin-top:2px"></small>
 </div>
@@ -71,7 +72,7 @@
 {% if f.foto %}
 <p class="note-auto">Foto tersimpan di draft: <img src="/foto/{{ f.foto }}" alt="" style="height:60px;vertical-align:middle;border-radius:6px;border:1px solid var(--line)"> (pilih file baru bila ingin mengganti)</p>
 {% endif %}
-<input type="file" name="foto" accept="image/*" {% if not f.foto %}required{% endif %}>
+<input type="file" name="foto" accept="image/jpeg,image/png,image/webp" {% if not f.foto %}required{% endif %}>
 
 <div style="margin-top:14px;background:#f8fafc;padding:10px;border-radius:6px;border:1px solid var(--line)">
   <label style="font-weight:400;margin:0;font-size:12px;line-height:1.5">
@@ -95,9 +96,7 @@
     <li><b>Perlindungan Duplikasi:</b> Laporan yang dicurigai duplikat <b>tidak ditolak otomatis</b>; petugas dan admin akan memeriksa fakta sebelum penetapan.</li>
     <li><b>Keamanan Data Pribadi:</b> NIK dan identitas sensitif disensor di ruang publik dan tidak dikirimkan ke model AI umum.</li>
   </ul>
-  <div class="disc">
-    <b>Penyimpanan Draft:</b> Tombol <i>Simpan sebagai draft</i> menyimpan data di server tanpa validasi kelengkapan, sehingga dapat dilanjutkan sewaktu-waktu.
-  </div>
+  <div class="disc"><b>Penyimpanan Draft:</b> {% if demo_mode %}Laporan simulasi tersimpan dalam browser ini (maksimal 4 laporan tambahan), bukan database bersama.{% else %}Draft tersimpan di server dan dapat dilanjutkan.{% endif %}</div>
 </div>
 </div>
 
@@ -122,16 +121,67 @@ function getGPSLocation() {
 
 (function(){
   var form=document.getElementById('lapform'), note=document.getElementById('autosave-note'), off=document.getElementById('offline');
+  var DEMO={{ 'true' if demo_mode else 'false' }};
   var KEY='tangguh_draf_'+(form.dataset.draft||'baru');
   var N=['nama','nik','no_kk','provinsi','kabupaten','kecamatan','desa','dusun','rt_rw','koordinat','deskripsi'];
-  function save(){try{var d={t:Date.now()};N.forEach(function(n){if(form.elements[n])d[n]=form.elements[n].value});
+  function save(){if(DEMO)return;try{var d={t:Date.now()};N.forEach(function(n){if(form.elements[n])d[n]=form.elements[n].value});
     if(N.some(function(n){return d[n]})){localStorage.setItem(KEY,JSON.stringify(d));note.textContent='Tersimpan otomatis di perangkat pukul '+new Date().toLocaleTimeString('id-ID');}}catch(e){}}
-  try{var d=JSON.parse(localStorage.getItem(KEY)||'null');
+  try{var d=DEMO?null:JSON.parse(localStorage.getItem(KEY)||'null');
     if(d&&N.every(function(n){return !form.elements[n]||!form.elements[n].value})){N.forEach(function(n){if(d[n]&&form.elements[n])form.elements[n].value=d[n]});
       note.textContent='Isian dipulihkan dari simpanan otomatis ('+new Date(d.t).toLocaleString('id-ID')+'). Pilih ulang foto.'}}catch(e){}
   N.forEach(function(n){if(form.elements[n])form.elements[n].addEventListener('input',save)});
   function net(){off.style.display=navigator.onLine?'none':'block'} window.addEventListener('online',net);window.addEventListener('offline',net);net();
-  form.addEventListener('submit',function(e){if(!navigator.onLine){e.preventDefault();save();alert('Sedang offline. Isian aman di perangkat ini. Kirim lagi setelah sinyal kembali.')}});
+  var prepared=false, busy=false;
+  var photo=form.elements.foto;
+  async function compress(file){
+    if(!/^image\/(jpeg|png|webp)$/.test(file.type))throw Error('Gunakan foto JPG, PNG, atau WebP.');
+    var url=URL.createObjectURL(file);
+    try{
+      var img=new Image();
+      await new Promise(function(resolve,reject){img.onload=resolve;img.onerror=function(){reject(Error('Foto tidak dapat dibaca.'))};img.src=url});
+      if(!img.naturalWidth||!img.naturalHeight)throw Error('Foto tidak valid.');
+      var scale=Math.min(1,1400/Math.max(img.naturalWidth,img.naturalHeight));
+      var canvas=document.createElement('canvas');
+      canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
+      var ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      var blob;
+      for(var quality of [.8,.65,.5,.35,.2]){
+        blob=await new Promise(function(resolve){canvas.toBlob(resolve,'image/jpeg',quality)});
+        if(blob&&blob.size<=240000)return blob;
+      }
+      throw Error('Foto masih terlalu besar setelah kompresi. Pilih foto yang lebih kecil.');
+    }finally{URL.revokeObjectURL(url)}
+  }
+  function dataURL(blob){return new Promise(function(resolve,reject){var r=new FileReader();r.onload=function(){resolve(r.result)};r.onerror=reject;r.readAsDataURL(blob)})}
+  form.addEventListener('submit',async function(e){
+    if(prepared)return;
+    e.preventDefault();
+    if(busy)return;
+    if(!navigator.onLine){save();alert('Sedang offline. Kirim ulang setelah sinyal kembali.');return}
+    if(DEMO&&!form.elements.demo_consent.checked){alert('Centang konfirmasi data fiktif dahulu.');return}
+    busy=true;
+    var submitter=e.submitter||form.querySelector('button[name="aksi"][value="kirim"]');
+    try{
+      if(photo.files.length){
+        note.textContent='Memproses dan memperkecil foto...';
+        var blob=await compress(photo.files[0]);
+        if(DEMO){
+          var hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',await blob.arrayBuffer()))).map(function(x){return x.toString(16).padStart(2,'0')}).join('');
+          var name='demo-'+hash+'.jpg';
+          localStorage.setItem('tangguh_photo_'+name,await dataURL(blob));
+          form.elements.demo_photo.value=name;
+          photo.disabled=true;
+        }else{
+          var transfer=new DataTransfer();
+          transfer.items.add(new File([blob],'foto.jpg',{type:'image/jpeg'}));
+          photo.files=transfer.files;
+        }
+      }
+      prepared=true;
+      form.requestSubmit(submitter);
+    }catch(err){prepared=false;photo.disabled=false;note.textContent='Gagal menyiapkan foto: '+err.message;alert(note.textContent)}
+    finally{busy=false}
+  });
 })();
 </script>
 {% endblock %}

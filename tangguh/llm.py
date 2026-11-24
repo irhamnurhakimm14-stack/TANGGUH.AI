@@ -1,5 +1,6 @@
 """Verified aggregates -> Gemini JSON plan -> deterministic Indonesian summary."""
 import json
+import os
 from collections import Counter
 import requests
 from . import config
@@ -70,7 +71,11 @@ def summarize(facts,caller=None):
     prompt,n=_prompt(facts)
     try:
         if caller is not None: raw=caller(prompt)
-        elif not config.GEMINI_API_KEY: return fail("API key belum tersedia; ringkasan template digunakan.")
+        elif not config.GEMINI_API_KEY:
+            token=os.getenv("VERCEL_OIDC_TOKEN") if os.getenv("TANGGUH_GATEWAY")=="1" else None
+            if not token: return fail("API key belum tersedia; ringkasan template digunakan.")
+            r=requests.post("https://ai-gateway.vercel.sh/v1/chat/completions",headers={"Authorization":"Bearer "+token},json={"model":"google/gemini-3.1-flash-lite","messages":[{"role":"user","content":prompt}],"temperature":0,"max_tokens":512,"response_format":{"type":"json_object"}},timeout=15)
+            r.raise_for_status(); raw=r.json()["choices"][0]["message"]["content"]
         else:
             url=f"https://generativelanguage.googleapis.com/v1beta/models/{config.GEMINI_MODEL}:generateContent"
             r=requests.post(url,headers={"x-goog-api-key":config.GEMINI_API_KEY},json={"contents":[{"parts":[{"text":prompt}]}],"generationConfig":{"temperature":0,"responseMimeType":"application/json","maxOutputTokens":512}},timeout=15)

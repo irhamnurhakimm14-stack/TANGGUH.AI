@@ -3,12 +3,14 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import os
+import uuid
 from contextlib import contextmanager
 from datetime import datetime
 
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from . import config
+from . import config, cloud_db
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS reports (
@@ -51,6 +53,10 @@ CREATE TABLE IF NOT EXISTS users (
 
 @contextmanager
 def connect():
+    if config.CLOUD_DB:
+        with cloud_db.connect() as con:
+            yield con
+        return
     config.DATA_DIR.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(config.DB_PATH)
     con.row_factory = sqlite3.Row
@@ -62,6 +68,10 @@ def connect():
 
 
 def init_db():
+    if config.CLOUD_DB:
+        cloud_db.initialize(SCHEMA)
+        seed_users()
+        return
     with connect() as con:
         con.executescript(SCHEMA)
 
@@ -90,7 +100,14 @@ def init_db():
 
 
 def seed_users():
-    """Memastikan akun demo default selalu tersedia."""
+    """Seed accounts; cloud requires explicitly configured passwords."""
+    if config.CLOUD_DB:
+        with connect() as con:
+            for role in ("admin", "petugas"):
+                password = os.getenv(role.upper() + "_PASSWORD")
+                if password and len(password) >= 12:
+                    con.execute("INSERT INTO users (username,password_hash,role,nama_lengkap,created_at) VALUES (?,?,?,?,?) ON CONFLICT (username) DO NOTHING", (role,generate_password_hash(password),role,role.capitalize(),datetime.now().isoformat(timespec="seconds")))
+        return
     with connect() as con:
         if not con.execute("SELECT 1 FROM users WHERE username='admin'").fetchone():
             con.execute(
@@ -139,6 +156,8 @@ def change_user_password(username: str, new_password: str) -> bool:
 
 
 def _next_id(con) -> str:
+    if config.CLOUD_DB:
+        return "TG-" + uuid.uuid4().hex[:16]
     n = con.execute("SELECT COUNT(*) FROM reports").fetchone()[0] + 1
     while con.execute("SELECT 1 FROM reports WHERE id=?", (f"TG-{n:03d}",)).fetchone():
         n += 1

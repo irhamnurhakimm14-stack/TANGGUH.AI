@@ -1,10 +1,21 @@
 {% extends "base.html" %}{% block body %}
-<h1>Laporan {{ r.id }}</h1><p class="sub">{{ r.created_at }} · <span class="pill p-{{r.status}}">{{ r.status }}</span> <span class="pill p-{{r.rules_status}}">Rule-Based: {{ r.rules_status }}</span></p>
+<h1>Laporan {{ r.id }}</h1><p class="sub">{{ r.created_at }} · <span class="pill p-{{r.status}}">{{ r.status|stat }}</span> <span class="pill p-{{r.rules_status}}">Pemeriksaan data: {{ r.rules_status|cek }}</span></p>
+{% set cmp_fields = [('nama','Nama'),('nik','NIK'),('no_kk','No. KK'),('kecamatan','Kecamatan'),('nagari','Nagari'),('jorong','Jorong'),('deskripsi','Deskripsi'),('created_at','Dikirim')] %}
+{% if dups %}<div class="alert-dup"><h3>⚠ TERDAPAT DUPLIKASI DATA dengan {{ dups|map('first')|join(', ') }}</h3>
+<p style="margin:0">Laporan ini memiliki data yang sama dengan laporan lain. Sistem <b>tidak menghapus atau menolak sendiri</b>; keputusan ada pada admin. <b>Tolak</b> bila benar-benar ganda. Pilih <b>Bukan duplikat</b> bila ini laporan lanjutan (mis. perkembangan kerusakan).</p>
+{% for ref, o in dups %}<table class="cmp"><tr><th></th><th>Laporan ini ({{ r.id }})</th><th><a href="/laporan/{{ ref }}">{{ ref }}</a> <span class="pill p-{{ o.status }}">{{ o.status|stat }}</span></th></tr>
+{% for k,l in cmp_fields %}<tr><th>{{ l }}</th><td class="{{ 'same' if r[k] and r[k]==o[k] and k!='created_at' else 'diff' }}">{{ r[k] or '-' }}</td><td class="{{ 'same' if r[k] and r[k]==o[k] and k!='created_at' else 'diff' }}">{{ o[k] or '-' }}</td></tr>{% endfor %}</table>{% endfor %}
+<small>Sel merah = isi sama persis.</small>
+{% if r.status == 'menunggu' %}<div class="btns">
+<form method="post" action="/laporan/{{ r.id }}/tolak-duplikat" onsubmit="return confirm('Tolak laporan {{ r.id }} karena duplikat?')"><button class="btn danger">Tolak laporan ini (duplikat)</button></form>
+<form method="post" action="/laporan/{{ r.id }}/bukan-duplikat"><button class="btn sec">Bukan duplikat (laporan lanjutan)</button></form></div>{% endif %}</div>
+{% elif referenced_by %}<div class="alert-dup info"><h3>ℹ Ada laporan lain dengan data yang sama</h3>
+<p style="margin:0">Laporan {% for x in referenced_by %}<a href="/laporan/{{ x }}">{{ x }}</a>{{ ', ' if not loop.last }}{% endfor %} memiliki data yang sama dengan laporan ini. Periksa keduanya sebelum verifikasi.</p></div>{% endif %}
 <div class="grid2"><div>
 <div class="card"><h3 style="margin-top:0">Data laporan</h3><table>
 {% for k,l in [('nama','Nama'),('nik','NIK'),('no_kk','No. KK'),('kecamatan','Kecamatan'),('nagari','Nagari'),('jorong','Jorong'),('koordinat','Koordinat'),('deskripsi','Deskripsi')] %}<tr><th>{{l}}</th><td>{{ r[k] or '-' }}</td></tr>{% endfor %}</table></div>
-<div class="card"><h3 style="margin-top:0">Hasil pemeriksaan Rule-Based</h3>
-{% for i in r.issues %}<div class="iss {{i.level}}"><b>{{ i.code }}</b> — {{ i.message }}{% if i.ref_id %} <a href="/laporan/{{i.ref_id}}">lihat {{i.ref_id}}</a>{% endif %}</div>{% else %}<div class="iss info" style="background:var(--ok-bg);color:var(--ok)">Tidak ada temuan.</div>{% endfor %}</div></div>
+<div class="card"><h3 style="margin-top:0">Hasil pemeriksaan data</h3>
+{% for i in r.issues %}<div class="iss {{i.level}}"><b>{{ i.code|isu }}</b> — {{ i.message }}{% if i.ref_id %} <a href="/laporan/{{i.ref_id}}">lihat {{i.ref_id}}</a>{% endif %}</div>{% else %}<div class="iss info" style="background:var(--ok-bg);color:var(--ok)">Tidak ada temuan.</div>{% endfor %}</div></div>
 <div>{% if r.foto %}<div class="card"><img class="thumb" src="/foto/{{ r.foto }}" alt="foto kerusakan"></div>{% endif %}
 <div class="ai"><small>HASIL KLASIFIKASI AI (rekomendasi)</small>
 {% if r.kerusakan_ai %}<div class="big">{{ r.kerusakan_ai|kat }}</div><div class="bar"><i style="width:{{ (r.ai_confidence*100)|round }}%"></i></div><small>Keyakinan {{ (r.ai_confidence*100)|round }}%</small>

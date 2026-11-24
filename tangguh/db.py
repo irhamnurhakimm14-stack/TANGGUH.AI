@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS reports (
   kerusakan_ai TEXT, ai_confidence REAL,
   kerusakan_final TEXT, penanganan TEXT,
   rules_status TEXT, issues_json TEXT DEFAULT '[]',
-  status TEXT NOT NULL DEFAULT 'menunggu',   -- menunggu | terverifikasi | ditolak
+  status TEXT NOT NULL DEFAULT 'menunggu',   -- draft | menunggu | terverifikasi | ditolak
   catatan_admin TEXT
 );
 """
@@ -72,10 +72,13 @@ def get_report(rid: str):
 
 
 def list_reports(status: str | None = None, limit: int | None = None) -> list[dict]:
+    """Draft TIDAK ikut daftar biasa; ambil lewat status='draft'."""
     q, args = "SELECT * FROM reports", []
     if status:
         q += " WHERE status=?"
         args.append(status)
+    else:
+        q += " WHERE status != 'draft'"
     q += " ORDER BY created_at DESC, id DESC"
     if limit:
         q += f" LIMIT {int(limit)}"
@@ -93,8 +96,43 @@ def counts() -> dict:
     with connect() as con:
         rows = con.execute("SELECT status, COUNT(*) c FROM reports GROUP BY status").fetchall()
     d = {r["status"]: r["c"] for r in rows}
-    d["total"] = sum(d.values())
+    d["total"] = sum(v for k, v in d.items() if k != "draft")  # draft belum dianggap laporan
+    d["draft"] = d.get("draft", 0)
     return d
+
+
+def update_report(rid: str, rec: dict, issues: list[dict], rules_status: str, status: str):
+    """Perbarui isi laporan (dipakai untuk menyimpan ulang draft atau mengirim draft)."""
+    with connect() as con:
+        con.execute(
+            """UPDATE reports SET created_at=?, nama=?, nik=?, no_kk=?, kecamatan=?, nagari=?, jorong=?,
+               koordinat=?, deskripsi=?, foto=?, kerusakan_ai=?, ai_confidence=?, rules_status=?,
+               issues_json=?, status=? WHERE id=?""",
+            (datetime.now().isoformat(timespec="seconds"), rec.get("nama"), rec.get("nik"), rec.get("no_kk"),
+             rec.get("kecamatan"), rec.get("nagari"), rec.get("jorong"), rec.get("koordinat"),
+             rec.get("deskripsi"), rec.get("foto"), rec.get("kerusakan_ai"), rec.get("ai_confidence"),
+             rules_status, json.dumps(issues, ensure_ascii=False), status, rid))
+
+
+def update_issues(rid: str, issues: list[dict], rules_status: str, catatan: str | None = None):
+    """Perbarui daftar temuan Rule-Based (mis. setelah admin menandai 'bukan duplikat')."""
+    with connect() as con:
+        if catatan is None:
+            con.execute("UPDATE reports SET issues_json=?, rules_status=? WHERE id=?",
+                        (json.dumps(issues, ensure_ascii=False), rules_status, rid))
+        else:
+            con.execute("UPDATE reports SET issues_json=?, rules_status=?, catatan_admin=? WHERE id=?",
+                        (json.dumps(issues, ensure_ascii=False), rules_status, catatan, rid))
+
+
+def delete_draft(rid: str) -> dict | None:
+    """Hapus HANYA laporan berstatus draft. Mengembalikan baris yang dihapus (atau None)."""
+    r = get_report(rid)
+    if not r or r["status"] != "draft":
+        return None
+    with connect() as con:
+        con.execute("DELETE FROM reports WHERE id=? AND status='draft'", (rid,))
+    return r
 
 
 def _row(r) -> dict:

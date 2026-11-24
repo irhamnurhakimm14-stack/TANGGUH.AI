@@ -210,7 +210,7 @@ def find_duplicates(rec: dict, existing: Iterable[dict], name_threshold: float =
             seen.add(rid)
             out.append(
                 issue(reason[0], "warning", "nik",
-                      f"Potensi duplikasi ({reason[1]}) dengan laporan {rid}. Perlu pemeriksaan admin.", ref_id=rid)
+                      f"Terdapat duplikasi data: {reason[1]} dengan laporan {rid}.", ref_id=rid)
             )
     return out
 

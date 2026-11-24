@@ -6,9 +6,11 @@
 <a href="/" class="{{ 'on' if p=='/' }}">Beranda</a>
 <a href="/laporan/baru" class="{{ 'on' if p=='/laporan/baru' }}">Input Laporan</a>
 <a href="/verifikasi" class="{{ 'on' if p.startswith('/verifikasi') or p.startswith('/laporan/T') }}">Verifikasi &amp; Rekap</a>
+<a href="/draft" class="{{ 'on' if p.startswith('/draft') }}">Draft{% if draft_count %} <span class="pill p-menunggu">{{ draft_count }}</span>{% endif %}</a>
 <a href="/ringkasan" class="{{ 'on' if p=='/ringkasan' }}">Ringkasan AI</a>
 <a href="/panduan" class="{{ 'on' if p=='/panduan' }}">Panduan</a>
 <div class="disc" style="margin-top:20px">Asesmen setelah lokasi aman. Jangan unggah data identitas korban yang tidak perlu.</div></nav>
 <main>{% with m = get_flashed_messages(with_categories=true) %}{% for cat,msg in m %}<div class="flash {{cat}}">{{ msg }}</div>{% endfor %}{% endwith %}
 {% block body %}{% endblock %}
-<p style="color:var(--mute);font-size:12px">TANGGUH.AI · AI hanya menyarankan. Keputusan akhir ada pada petugas/admin.</p></main></div></body></html>
+<p style="color:var(--mute);font-size:12px">TANGGUH.AI · AI hanya menyarankan. Keputusan akhir ada pada petugas/admin.</p></main></div>
+<script>try{if(location.search.indexOf('saved=')>-1){Object.keys(localStorage).forEach(function(k){if(k.indexOf('tangguh_draf_')===0)localStorage.removeItem(k)})}}catch(e){}</script></body></html>

@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block body %}
+<h1>Draft Laporan</h1><p class="sub">Laporan yang belum dikirim. Tidak diperiksa dan belum dihitung sebagai laporan. Lanjutkan kapan saja, mis. setelah sinyal kembali.</p>
+<p><a class="btn" href="/laporan/baru">+ Laporan baru</a></p>
+<div class="card"><table><tr><th>ID</th><th>Pemilik</th><th>Lokasi</th><th>Foto</th><th>Terakhir disimpan</th><th></th></tr>
+{% for r in rows %}<tr><td><b>{{ r.id }}</b></td><td>{{ r.nama or '(belum diisi)' }}</td><td>{{ r.nagari or '-' }}{% if r.kecamatan %}, {{ r.kecamatan }}{% endif %}</td><td>{{ 'ada' if r.foto else '-' }}</td><td>{{ r.created_at }}</td>
+<td style="white-space:nowrap"><a class="btn" href="/laporan/baru?draft={{ r.id }}">Lanjutkan</a>
+<form method="post" action="/draft/{{ r.id }}/hapus" style="display:inline" onsubmit="return confirm('Hapus draft {{ r.id }}?')"><button class="btn sec">Hapus</button></form></td></tr>
+{% else %}<tr><td colspan="6">Tidak ada draft.</td></tr>{% endfor %}</table></div>
+{% endblock %}

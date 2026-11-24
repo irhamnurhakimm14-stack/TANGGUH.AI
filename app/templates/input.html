@@ -1,7 +1,10 @@
 {% extends "base.html" %}{% block body %}
 <h1>Input Laporan Kerusakan</h1><p class="sub">Lengkapi data lokasi dan pemilik rumah. Foto hanya menjadi bukti pendukung.</p>
-<div class="grid2"><form class="card" method="post" enctype="multipart/form-data">
-<label>Nama pemilik *</label><input name="nama" value="{{ f.nama }}" required>
+<div id="offline" class="offline">📵 Sinyal terputus. Isian tetap tersimpan otomatis di perangkat ini. Kirim setelah sinyal kembali.</div>
+<div class="grid2"><form id="lapform" class="card" method="post" enctype="multipart/form-data" data-draft="{{ f.draft_id or 'baru' }}">
+<input type="hidden" name="draft_id" value="{{ f.draft_id }}">
+{% if f.draft_id %}<div class="disc">Melanjutkan draft <b>{{ f.draft_id }}</b>.</div>{% endif %}
+<label>Nama pemilik *</label><input name="nama" value="{{ f.nama }}">
 <label>NIK *</label><input name="nik" value="{{ f.nik }}" inputmode="numeric" placeholder="16 digit">
 <label>Nomor KK</label><input name="no_kk" value="{{ f.no_kk }}" inputmode="numeric" placeholder="16 digit">
 <label>Kecamatan *</label><input name="kecamatan" value="{{ f.kecamatan }}">
@@ -9,9 +12,29 @@
 <label>Jorong *</label><input name="jorong" value="{{ f.jorong }}">
 <label>Koordinat GPS</label><input name="koordinat" value="{{ f.koordinat }}" placeholder="0.95393 S 100.62134 E">
 <label>Deskripsi kerusakan *</label><textarea name="deskripsi" placeholder="Jelaskan objek, bagian yang rusak, dan kondisi yang dilihat…">{{ f.deskripsi }}</textarea>
-<label>Foto kerusakan *</label><input type="file" name="foto" accept="image/*">
+<label>Foto kerusakan *</label>
+{% if f.foto %}<p class="note-auto">Foto sudah tersimpan di draft: <img src="/foto/{{ f.foto }}" alt="" style="height:60px;vertical-align:middle;border-radius:6px"> (pilih file baru bila ingin mengganti)</p>{% endif %}
+<input type="file" name="foto" accept="image/*">
 <label style="font-weight:400"><input type="checkbox" name="setuju" style="width:auto"> Saya menyetujui data dan foto digunakan untuk pendataan bencana dan memastikan tidak memuat wajah atau identitas korban.</label>
-<p><button class="btn">Kirim &amp; Klasifikasikan</button></p></form>
+<div class="btns-form"><button class="btn" name="aksi" value="kirim">Kirim &amp; Klasifikasikan</button>
+<button class="btn sec" name="aksi" value="draft" formnovalidate>Simpan sebagai draft</button></div>
+<p id="autosave-note" class="note-auto">Isian tersimpan otomatis di perangkat ini saat Anda mengetik (foto tidak ikut, pilih ulang bila perlu).</p>
+</form>
 <div class="card"><h3 style="margin-top:0">Yang diperiksa otomatis</h3><ul><li>Kelengkapan isian</li><li>Format NIK, KK, dan GPS</li><li>Potensi duplikasi</li><li>Konsistensi kerusakan vs penanganan</li></ul>
-<div class="disc">Laporan terindikasi duplikat <b>tidak dihapus</b>; admin yang memutuskan.</div></div></div>
+<div class="disc">Laporan terindikasi duplikat <b>tidak dihapus dan tidak ditolak otomatis</b>; admin yang memutuskan.</div>
+<div class="disc"><b>Draft</b> = simpan di server tanpa pemeriksaan (butuh sinyal). Simpan otomatis di perangkat tetap jalan walau sinyal hilang.</div></div></div>
+<script>
+(function(){
+  var form=document.getElementById('lapform'), note=document.getElementById('autosave-note'), off=document.getElementById('offline');
+  var KEY='tangguh_draf_'+(form.dataset.draft||'baru'), N=['nama','nik','no_kk','kecamatan','nagari','jorong','koordinat','deskripsi'];
+  function save(){try{var d={t:Date.now()};N.forEach(function(n){d[n]=form.elements[n].value});
+    if(N.some(function(n){return d[n]})){localStorage.setItem(KEY,JSON.stringify(d));note.textContent='✓ Tersimpan otomatis di perangkat ini pukul '+new Date().toLocaleTimeString('id-ID')+' (foto tidak ikut).'}}catch(e){}}
+  try{var d=JSON.parse(localStorage.getItem(KEY)||'null');
+    if(d&&N.every(function(n){return !form.elements[n].value})){N.forEach(function(n){if(d[n])form.elements[n].value=d[n]});
+      note.textContent='↺ Isian dipulihkan dari simpanan otomatis ('+new Date(d.t).toLocaleString('id-ID')+'). Pilih ulang foto.'}}catch(e){}
+  N.forEach(function(n){form.elements[n].addEventListener('input',save)});
+  function net(){off.style.display=navigator.onLine?'none':'block'} window.addEventListener('online',net);window.addEventListener('offline',net);net();
+  form.addEventListener('submit',function(e){if(!navigator.onLine){e.preventDefault();save();alert('Sedang offline. Isian aman di perangkat ini. Kirim lagi setelah sinyal kembali.')}});
+})();
+</script>
 {% endblock %}

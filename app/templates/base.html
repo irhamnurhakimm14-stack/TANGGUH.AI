@@ -32,7 +32,16 @@
 <a href="/panduan" class="{{ 'on' if p=='/panduan' }}">Panduan</a>
 <div class="disc" style="margin-top:20px">Asesmen setelah lokasi aman. Jangan unggah data identitas korban yang tidak perlu.</div></nav>
 <main>{% with m = get_flashed_messages(with_categories=true) %}{% for cat,msg in m %}<div class="flash {{cat}}">{{ msg }}</div>{% endfor %}{% endwith %}
-{% if demo_mode %}<div class="flash warn"><b>PREVIEW DATA SINTETIS</b> — baca-saja. Jangan masukkan data warga sungguhan. Model visual belum aktif di Vercel.</div>{% endif %}
+{% if demo_mode %}<div class="flash warn"><b>DEMO DATA SINTETIS</b> — maksimal 4 laporan tambahan dalam browser ini. Jangan masukkan data warga sungguhan. Foto lokal; klasifikasi visual manual.</div>{% endif %}
 {% block body %}{% endblock %}
 <p style="color:var(--mute);font-size:12px;margin-top:28px">TANGGUH.AI · Platform Pendataan Pascabencana Nasional · AI hanya menyarankan, keputusan akhir pada verifikator manusia.</p></main></div>
-<script>try{if(location.search.indexOf('saved=')>-1){Object.keys(localStorage).forEach(function(k){if(k.indexOf('tangguh_draf_')===0)localStorage.removeItem(k)})}}catch(e){}</script></body></html>
+<script>try{if(location.search.indexOf('saved=')>-1){Object.keys(localStorage).forEach(function(k){if(k.indexOf('tangguh_draf_')===0)localStorage.removeItem(k)})}}catch(e){}</script>{% if demo_mode %}<script>
+(function(){
+  function key(url){return 'tangguh_photo_'+url.split('/').pop()}
+  document.querySelectorAll('img[src^="/foto/demo-"]').forEach(function(img){
+    var value;try{value=localStorage.getItem(key(img.getAttribute('src')))}catch(e){}
+    if(value){img.src=value;var a=img.closest('a');if(a){a.href=value;a.removeAttribute('target');a.setAttribute('download','foto-demo.jpg')}}
+    else{img.alt='Foto lokal tidak tersedia di browser ini';var a=img.closest('a');if(a){a.removeAttribute('href');a.removeAttribute('target')}}
+  });
+})();
+</script>{% endif %}</body></html>

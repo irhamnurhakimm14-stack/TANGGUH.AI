@@ -14,3 +14,5 @@ uploads/*
 # model besar: simpan di Google Drive / GitHub Release, bukan di repo
 models/*
 !models/.gitkeep
+!models/clip_lr.joblib
+!models/metrics.json

@@ -44,11 +44,11 @@
 <div class="card"><h3 style="margin-top:0">Alur Sistem (Human-in-the-Loop)</h3>
 <div class="grid3" style="grid-template-columns:repeat(4,1fr)">
 <div><b>01. Pelaporan</b><br>Masyarakat mengirim laporan &amp; foto</div>
-<div><b>02. Validasi AI</b><br>Rule-Based &amp; Saran Klasifikasi CNN</div>
+<div><b>02. Validasi AI</b><br>Rule-Based &amp; Saran Klasifikasi AI</div>
 <div><b>03. Petugas</b><br>Pemeriksaan awal &amp; teruskan ke admin</div>
 <div><b>04. Admin</b><br>Keputusan verifikasi akhir &amp; penanganan</div>
 </div>
-<p class="sub" style="margin-top:12px">Model CNN: {% if ai_ready %}<span class="pill p-lolos">aktif (MobileNetV2)</span>{% else %}<span class="pill p-menunggu">belum dipasang (mode demo)</span>{% endif %}</p></div>
+<p class="sub" style="margin-top:12px">Model AI: {% if ai_ready %}<span class="pill p-lolos">aktif (CLIP + Logistic Regression)</span>{% else %}<span class="pill p-menunggu">belum dipasang (mode demo)</span>{% endif %}</p></div>
 
 <div class="card"><h3 style="margin-top:0">Laporan terbaru</h3>
 {% for r in latest %}

@@ -186,11 +186,8 @@ def create_app():
     # ---------------------------------------------------------------- Beranda Publik & Login Awal
     @app.get("/")
     def home():
-        if not session.get("user_id"):
-            return render_template("login.html")
-        if session.get("role") == "admin":
-            return redirect(url_for("admin_dashboard"))
-        return redirect(url_for("petugas_dashboard"))
+        # Selalu arahkan ke halaman login terlebih dahulu saat membuka web awal
+        return render_template("login.html")
 
     @app.get("/beranda")
     def beranda():
@@ -200,11 +197,6 @@ def create_app():
     # ---------------------------------------------------------------- Autentikasi (Multi-Role)
     @app.route("/login", methods=["GET", "POST"])
     def login():
-        if session.get("user_id"):
-            if session.get("role") == "admin":
-                return redirect(url_for("admin_dashboard"))
-            return redirect(url_for("petugas_dashboard"))
-
         if request.method == "POST":
             username = (request.form.get("username") or "").strip()
             password = (request.form.get("password") or "").strip()

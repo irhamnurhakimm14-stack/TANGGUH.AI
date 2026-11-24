@@ -1,0 +1,35 @@
+{
+  "skema": "ringan_vs_sedangberat",
+  "n_foto": 546,
+  "baseline": 0.5586080586080586,
+  "C": 0.01,
+  "T_DUP": 0.92,
+  "cv_asli_akurasi": 0.6825396825396824,
+  "cv_ketat_akurasi": 0.6788766788766788,
+  "cv_ketat_macro_f1": 0.6747171658795476,
+  "test_terkunci": {
+    "n": 90,
+    "akurasi": 0.7555555555555555,
+    "ci95": [
+      0.6666666666666666,
+      0.8333333333333334
+    ],
+    "macro_f1": 0.7544642857142858,
+    "recall": {
+      "ringan": 0.9024390243902439,
+      "sedang_berat": 0.6326530612244898
+    },
+    "confusion_matrix": [
+      [
+        37,
+        4
+      ],
+      [
+        18,
+        31
+      ]
+    ],
+    "baseline": 0.5444444444444444
+  },
+  "catatan": "Test terkunci tidak dipakai untuk memilih apa pun. Skema 2 kelas dan CLIP dipilih sebelumnya dari diagnostik pada seluruh data (sedikit optimistis)."
+}

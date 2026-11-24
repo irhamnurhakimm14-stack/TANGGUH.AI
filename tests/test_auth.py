@@ -499,3 +499,64 @@ def test_archiving_soft_delete(auth_client):
     res_tab_arsip = auth_client.get("/admin/dashboard?tab=arsip")
     assert rid in res_tab_arsip.get_data(as_text=True)
 
+
+def test_root_always_shows_login_page(auth_client):
+    """Pengujian: Membuka root URL '/' selalu menampilkan halaman login terlebih dahulu."""
+    # Tanpa login
+    res = auth_client.get("/")
+    assert res.status_code == 200
+    assert 'name="username"' in res.get_data(as_text=True)
+    assert 'name="password"' in res.get_data(as_text=True)
+
+    # Bahkan jika sudah ada session login, buka '/' tetap menampilkan halaman login
+    auth_client.post("/login", data={"username": "admin", "password": "admin123"})
+    res_logged = auth_client.get("/")
+    assert res_logged.status_code == 200
+    assert 'name="username"' in res_logged.get_data(as_text=True)
+
+
+def test_clip_model_inference_and_info(tmp_path):
+    """Pengujian pemuatan model CLIP ViT-B/32 + Logistic Regression dan inferensi gambar."""
+    from tangguh.ml import predict
+    assert predict.model_available() is True
+
+    info = predict.get_model_info()
+    assert info["status"] == "ready"
+    assert info["class_count"] == 2
+    assert "ringan" in info["classes"]
+    assert "sedang_berat" in info["classes"]
+
+    # Buat file gambar uji
+    test_img = tmp_path / "test_building.jpg"
+    Image.new("RGB", (224, 224), color="gray").save(test_img, "JPEG")
+
+    res = predict.predict_image(test_img)
+    assert res["status"] in ("ok", "tidak_yakin")
+    assert res["label"] in ("ringan", "sedang_berat")
+    assert isinstance(res["confidence"], float)
+    assert 0.0 <= res["confidence"] <= 1.0
+    assert "ringan" in res["probs"]
+    assert "sedang_berat" in res["probs"]
+
+
+def test_clip_invalid_image_handling(tmp_path):
+    """Pengujian penanganan file foto rusak atau tidak valid agar tidak menghasilkan prediksi palsu."""
+    from tangguh.ml import predict
+
+    # File rusak (bukan format gambar valid)
+    corrupt_file = tmp_path / "corrupted.jpg"
+    corrupt_file.write_text("Ini bukan gambar asli tapi teks palsu", encoding="utf-8")
+
+    res = predict.predict_image(corrupt_file)
+    assert res["status"] == "error"
+    assert res["label"] is None
+    assert res["confidence"] is None
+    assert "tidak valid atau rusak" in res["note"]
+
+    # File tidak ada
+    non_existent = tmp_path / "tidak_ada.jpg"
+    res_none = predict.predict_image(non_existent)
+    assert res_none["status"] == "error"
+    assert res_none["label"] is None
+
+

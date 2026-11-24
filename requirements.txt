@@ -10,3 +10,10 @@ scikit-learn>=1.4  # split data per rumah + evaluasi
 requests>=2.31
 python-dotenv>=1.0
 pytest>=8.0
+
+# --- Model AI Vision Transformer (CLIP ViT-B/32 + Logistic Regression) ---
+torch>=2.0
+torchvision>=0.15
+transformers>=4.40
+joblib>=1.3
+

@@ -27,13 +27,21 @@ BBOX_SUMBAR = (-3.6, 1.0, 98.4, 102.0)
 BBOX_INDONESIA = (-11.5, 6.5, 94.5, 141.5)
 
 # Kategori kerusakan (kunci internal -> label tampilan)
-KATEGORI = {"ringan": "Rusak Ringan", "sedang": "Rusak Sedang", "berat": "Rusak Berat"}
+KATEGORI = {
+    "ringan": "Rusak Ringan",
+    "sedang_berat": "Rusak Sedang / Berat",
+    "sedang": "Rusak Sedang",
+    "berat": "Rusak Berat",
+    "hanyut": "Hanyut / Hilang",
+}
 
 # Pemetaan label dari PDF/Excel ke kelas CNN
 LABEL_MAP = {"RR": "ringan", "RS": "sedang", "RB": "berat"}
 
 IMG_SIZE = 224
-MODEL_PATH = MODEL_DIR / "damage_mobilenetv2.keras"
+CLIP_MODEL_PATH = MODEL_DIR / "clip_lr.joblib"
+CLIP_METRICS_PATH = MODEL_DIR / "metrics.json"
+MODEL_PATH = CLIP_MODEL_PATH
 CLASSES_PATH = MODEL_DIR / "classes.json"
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")

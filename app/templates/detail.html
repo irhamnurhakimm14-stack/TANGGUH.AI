@@ -200,11 +200,14 @@
       <div class="big">{{ r.kerusakan_ai|kat }}</div>
       <div class="bar"><i style="width:{{ (r.ai_confidence*100)|round }}%"></i></div>
       <small style="display:block;margin-top:4px">Keyakinan model: <b>{{ (r.ai_confidence*100)|round }}%</b></small>
+      {% if r.ai_confidence and r.ai_confidence < 0.60 %}
+      <div style="margin-top:6px"><span class="chip amber">Perlu Pemeriksaan Khusus (Keyakinan &lt; 60%)</span></div>
+      {% endif %}
       {% else %}
       <p style="margin:6px 0;color:var(--mute)">Belum ada rekomendasi AI (model belum dipasang atau tidak ada foto). Tentukan manual.</p>
       {% endif %}
       <div style="margin-top:8px;font-size:11px;color:var(--mute);line-height:1.4">
-        * Model CNN mengklasifikasi 3 kelas (Rusak Ringan, Rusak Sedang, Rusak Berat). Kategori Hanyut/Hilang dinilai langsung oleh verifikator manusia.
+        * Model AI dilatih dengan 2 kelas (Rusak Ringan vs Rusak Sedang/Berat). Verifikator manusia menentukan kategori spesifik akhir (Ringan, Sedang, atau Berat), serta Hanyut/Hilang.
       </div>
     </div>
 

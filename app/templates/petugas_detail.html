@@ -89,16 +89,19 @@
     {% endif %}
 
     <div class="card ai">
-      <small style="color:var(--mute);font-weight:700">REKOMENDASI AI (MobileNetV2 CNN)</small>
+      <small style="color:var(--mute);font-weight:700">REKOMENDASI AI (CLIP Vision Transformer)</small>
       {% if r.kerusakan_ai %}
       <div class="big" style="margin:6px 0">{{ r.kerusakan_ai|kat }}</div>
       <div class="bar"><i style="width:{{ (r.ai_confidence*100)|round }}%"></i></div>
       <small style="display:block;margin-top:4px">Keyakinan model: <b>{{ (r.ai_confidence*100)|round }}%</b></small>
+      {% if r.ai_confidence and r.ai_confidence < 0.60 %}
+      <div style="margin-top:6px"><span class="chip amber">Perlu Pemeriksaan Khusus (Keyakinan &lt; 60%)</span></div>
+      {% endif %}
       {% else %}
-      <p style="margin:6px 0;color:var(--mute)">Model CNN belum dipasang atau foto tidak mencukupi.</p>
+      <p style="margin:6px 0;color:var(--mute)">Model AI belum dipasang atau foto tidak mencukupi.</p>
       {% endif %}
       <small style="display:block;margin-top:8px;color:var(--mute);font-size:11px">
-        * Klasifikasi CNN memprediksi 3 kategori bangunan (Ringan, Sedang, Berat).
+        * Model AI dilatih dengan 2 kelas (Rusak Ringan vs Rusak Sedang/Berat). Verifikator manusia menentukan kategori spesifik akhir.
       </small>
     </div>
 

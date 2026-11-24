@@ -1,6 +1,8 @@
 """Aplikasi web TANGGUH.AI (Flask) skala Nasional dengan Autentikasi Multi-Role."""
 import sys
 import uuid
+from io import BytesIO
+from urllib.parse import urlsplit
 from functools import wraps
 from pathlib import Path
 
@@ -12,12 +14,13 @@ from flask import (
     render_template,
     request,
     send_from_directory,
+    send_file,
     session,
     url_for,
 )
 from werkzeug.utils import secure_filename
 
-from tangguh import config, db, llm, rules
+from tangguh import config, db, llm, rules, cloud_db
 from tangguh.ml import predict
 
 ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp"}
@@ -94,6 +97,35 @@ def create_app():
     app.config.update(SECRET_KEY=config.SECRET_KEY, MAX_CONTENT_LENGTH=8 * 1024 * 1024)
     config.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     db.init_db()
+    if config.DEMO_MODE:
+        with db.connect() as con:
+            for i, kat in enumerate(('ringan','ringan','sedang','berat','berat','hanyut'),1):
+                con.execute('INSERT OR IGNORE INTO reports (id,created_at,nama,provinsi,kabupaten,kecamatan,desa,kerusakan_final,status,rules_status) VALUES (?,?,?,?,?,?,?,?,?,?)', (f'TG-DEMO-{i}', '2026-11-24T00:00:00', f'Contoh {i} (sintetis)', 'Sumatera Barat', 'Kabupaten Solok', 'Wilayah Contoh A' if i<=3 else 'Wilayah Contoh B', 'Desa Contoh A' if i<=3 else 'Desa Contoh B', kat, 'terverifikasi','lolos'))
+    if config.IS_VERCEL:
+        app.config.update(STRICT_AUTH=True, SESSION_COOKIE_SECURE=True, SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Lax', MAX_CONTENT_LENGTH=4*1024*1024)
+
+    @app.before_request
+    def protect_cloud():
+        if not config.IS_VERCEL:
+            return None
+        if request.endpoint not in {'home','login','static','health'} and not session.get('user_id'):
+            return redirect(url_for('login'))
+        if request.method == 'POST':
+            origin = request.headers.get('Origin') or request.headers.get('Referer') or ''
+            if urlsplit(origin).netloc != request.host:
+                abort(403)
+            if config.DEMO_MODE and request.endpoint not in {'login','summary','logout'}:
+                return 'Preview data sintetis bersifat baca-saja. Penyimpanan permanen belum dikonfigurasi.', 403
+
+    @app.after_request
+    def no_cache(response):
+        if config.IS_VERCEL and request.endpoint != 'static':
+            response.headers['Cache-Control']='no-store'
+        return response
+
+    @app.get('/health')
+    def health():
+        return {'status':'ok','demo':config.DEMO_MODE,'database':'postgresql' if config.CLOUD_DB else 'sqlite','visual_ai':'manual' if config.IS_VERCEL else 'local','gemini_configured':bool(config.GEMINI_API_KEY) or bool(__import__('os').getenv('TANGGUH_GATEWAY')=='1' and __import__('os').getenv('VERCEL_OIDC_TOKEN'))}
 
     # ---------------------------------------------------------------- Decorator Autentikasi
     def login_required(f):
@@ -181,6 +213,8 @@ def create_app():
             "user_role": session.get("role"),
             "user_nama": session.get("nama") or session.get("username"),
             "is_logged_in": bool(session.get("user_id")),
+            "demo_mode": config.DEMO_MODE,
+            "show_demo_accounts": not config.CLOUD_DB,
         }
 
     # ---------------------------------------------------------------- Beranda Publik & Login Awal
@@ -192,7 +226,7 @@ def create_app():
     @app.get("/beranda")
     def beranda():
         return render_template("home.html", c=db.counts(), latest=db.list_reports(limit=4),
-                               ai_ready=predict.model_available())
+                               ai_ready=not config.IS_VERCEL and predict.model_available())
 
     # ---------------------------------------------------------------- Autentikasi (Multi-Role)
     @app.route("/login", methods=["GET", "POST"])
@@ -215,7 +249,7 @@ def create_app():
             flash(f"Berhasil masuk sebagai {session['nama']} ({user['role'].capitalize()}).", "ok")
 
             next_url = request.args.get("next") or request.form.get("next")
-            if next_url and next_url.startswith("/") and next_url not in ("/", "/login"):
+            if next_url and next_url.startswith("/") and not next_url.startswith('//') and '\\' not in next_url and next_url not in ("/", "/login"):
                 return redirect(next_url)
 
             if user["role"] == "admin":
@@ -354,8 +388,14 @@ def create_app():
             ext = Path(file.filename).suffix.lower()
             if ext not in ALLOWED_EXT:
                 return foto_name, "Format foto harus JPG, PNG, atau WebP."
-            foto_name = f"{uuid.uuid4().hex}{ext}"
-            file.save(config.UPLOAD_DIR / secure_filename(foto_name))
+            if config.CLOUD_DB:
+                try:
+                    foto_name = cloud_db.save_photo(file.stream)
+                except ValueError as exc:
+                    return foto_name, str(exc)
+            else:
+                foto_name = f"{uuid.uuid4().hex}{ext}"
+                file.save(config.UPLOAD_DIR / secure_filename(foto_name))
         return foto_name, None
 
     @app.route("/laporan/baru", methods=["GET", "POST"])
@@ -421,7 +461,7 @@ def create_app():
             "foto": "Foto kerusakan"
         }
         issues = rules.validate_record(rec, existing=db.list_reports(), required=required)
-        ai = predict.predict_image(config.UPLOAD_DIR / foto_name) if foto_name else None
+        ai = predict.predict_image(config.UPLOAD_DIR / foto_name) if foto_name and not config.IS_VERCEL and not config.CLOUD_DB else None
         if ai and ai["status"] == "tidak_yakin":
             issues.append(rules.issue("AI_TIDAK_YAKIN", "warning", "foto",
                                       "AI tidak yakin dengan klasifikasi foto ini; periksa manual."))
@@ -681,6 +721,11 @@ def create_app():
 
     @app.get("/foto/<name>")
     def foto(name):
+        if config.CLOUD_DB:
+            data = cloud_db.load_photo(secure_filename(name))
+            if data is None:
+                abort(404)
+            return send_file(BytesIO(data), mimetype="image/jpeg", max_age=0)
         return send_from_directory(config.UPLOAD_DIR, secure_filename(name))
 
     return app

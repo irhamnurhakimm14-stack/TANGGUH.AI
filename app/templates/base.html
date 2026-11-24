@@ -32,6 +32,7 @@
 <a href="/panduan" class="{{ 'on' if p=='/panduan' }}">Panduan</a>
 <div class="disc" style="margin-top:20px">Asesmen setelah lokasi aman. Jangan unggah data identitas korban yang tidak perlu.</div></nav>
 <main>{% with m = get_flashed_messages(with_categories=true) %}{% for cat,msg in m %}<div class="flash {{cat}}">{{ msg }}</div>{% endfor %}{% endwith %}
+{% if demo_mode %}<div class="flash warn"><b>PREVIEW DATA SINTETIS</b> — baca-saja. Jangan masukkan data warga sungguhan. Model visual belum aktif di Vercel.</div>{% endif %}
 {% block body %}{% endblock %}
 <p style="color:var(--mute);font-size:12px;margin-top:28px">TANGGUH.AI · Platform Pendataan Pascabencana Nasional · AI hanya menyarankan, keputusan akhir pada verifikator manusia.</p></main></div>
 <script>try{if(location.search.indexOf('saved=')>-1){Object.keys(localStorage).forEach(function(k){if(k.indexOf('tangguh_draf_')===0)localStorage.removeItem(k)})}}catch(e){}</script></body></html>

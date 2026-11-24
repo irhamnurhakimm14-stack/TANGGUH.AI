@@ -1,0 +1,9 @@
+{
+  "framework": "flask",
+  "functions": {
+    "index.py": {
+      "maxDuration": 30,
+      "excludeFiles": "{tests/**,notebooks/**,data/**,models/**,extracted_model/**,uploads/**,scripts/**,**/*.ipynb,**/*.keras,**/*.joblib,**/*.pt,**/*.pdf,**/*.zip,**/*.xlsx}"
+    }
+  }
+}

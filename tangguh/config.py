@@ -1,5 +1,6 @@
 """Pengaturan terpusat TANGGUH.AI. Ubah di sini, bukan di banyak file."""
 import os
+import secrets
 from pathlib import Path
 
 try:  # .env opsional
@@ -10,11 +11,16 @@ except Exception:  # pragma: no cover
     pass
 
 ROOT = Path(__file__).resolve().parent.parent
-DATA_DIR = ROOT / "data"
+IS_VERCEL = os.getenv("VERCEL") == "1"
+CLOUD_DB = bool(os.getenv("DATABASE_URL"))
+DEMO_MODE = IS_VERCEL and not CLOUD_DB
+if IS_VERCEL and os.getenv("VERCEL_ENV") == "production" and DEMO_MODE:
+    raise RuntimeError("Database permanen wajib untuk production.")
+DATA_DIR = Path("/tmp/tangguh-ai/data") if IS_VERCEL else ROOT / "data"
 RAW_DIR = DATA_DIR / "raw"
 DATASET_DIR = DATA_DIR / "dataset"
 MODEL_DIR = ROOT / "models"
-UPLOAD_DIR = ROOT / "uploads"
+UPLOAD_DIR = Path("/tmp/tangguh-ai/uploads") if IS_VERCEL else ROOT / "uploads"
 DB_PATH = DATA_DIR / "tangguh.sqlite3"
 
 # Kode provinsi pada 2 digit pertama NIK. Sumatera Barat = 13.
@@ -45,5 +51,7 @@ MODEL_PATH = CLIP_MODEL_PATH
 CLASSES_PATH = MODEL_DIR / "classes.json"
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-secret")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
+SECRET_KEY = os.getenv("SECRET_KEY") or (secrets.token_hex(32) if IS_VERCEL else "dev-only-secret")
+if CLOUD_DB and IS_VERCEL and not os.getenv("SECRET_KEY"):
+    raise RuntimeError("SECRET_KEY wajib untuk database cloud.")

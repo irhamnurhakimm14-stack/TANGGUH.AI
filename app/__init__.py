@@ -149,6 +149,36 @@ def create_app():
     def upload_too_large(error):
         return 'Ukuran kiriman terlalu besar. Pilih foto yang lebih kecil atau muat ulang formulir untuk kompresi otomatis.',413
 
+    demo_probe = {}
+
+    def demo_smoke():
+        """Non-destructive synthetic HTTP test; no external API or shared writes."""
+        if demo_probe:
+            return demo_probe
+        base='https://localhost'
+        headers={'Origin':base}
+        try:
+            client=app.test_client()
+            other=app.test_client()
+            login=client.post('/login',base_url=base,headers=headers,data={'username':'admin','password':'admin123'})
+            assert login.status_code==302
+            data={'nama':'Uji Demo Fiktif','nik':'0000000000000000','provinsi':'Provinsi Fiktif','kabupaten':'Kota Fiktif','kecamatan':'Kecamatan Fiktif','desa':'Desa Fiktif','deskripsi':'Contoh atap rusak','setuju':'on','demo_consent':'on','demo_photo':'demo-'+'a'*64+'.jpg','aksi':'kirim'}
+            post=client.post('/laporan/baru',base_url=base,headers=headers,data=data)
+            assert post.status_code==302, f'POST {post.status_code}'
+            detail_url=urlsplit(post.headers['Location']).path
+            detail=client.get(detail_url,base_url=base)
+            assert detail.status_code==200 and b'Uji Demo Fiktif' in detail.data
+            draft=client.post('/laporan/baru',base_url=base,headers=headers,data={**data,'aksi':'draft','nama':'Draft Uji Fiktif'})
+            assert draft.status_code==302, f'Draft {draft.status_code}'
+            listing=client.get('/draft',base_url=base)
+            assert listing.status_code==200 and b'Draft Uji Fiktif' in listing.data
+            other.post('/login',base_url=base,headers=headers,data={'username':'admin','password':'admin123'})
+            assert other.get(detail_url,base_url=base).status_code==404
+            demo_probe.update(submit='pass',draft='pass',reload='pass',isolation='pass')
+        except (AssertionError,Exception) as exc:
+            demo_probe.update(result='failed',error_type=type(exc).__name__,stage=str(exc)[:100] if isinstance(exc,AssertionError) else 'internal')
+        return demo_probe
+
     @app.get('/health')
     def health():
         token = request.headers.get('x-vercel-oidc-token') if config.IS_VERCEL else None
@@ -159,6 +189,8 @@ def create_app():
                 result=llm.summarize(llm.build_facts(db.list_reports()),oidc_token=token)
                 gateway_probe.update(at=time.monotonic(),result={'source':result['source'],'note':result['note']})
             status['llm_probe']=gateway_probe['result']
+        if config.DEMO_MODE and request.args.get('check')=='demo':
+            status['demo_probe']=demo_smoke()
         return status
 
     # ---------------------------------------------------------------- Decorator Autentikasi

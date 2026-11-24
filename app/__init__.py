@@ -1,5 +1,7 @@
 """Aplikasi web TANGGUH.AI (Flask) skala Nasional dengan Autentikasi Multi-Role."""
 import sys
+import os
+import time
 import uuid
 from io import BytesIO
 from urllib.parse import urlsplit
@@ -123,9 +125,19 @@ def create_app():
             response.headers['Cache-Control']='no-store'
         return response
 
+    gateway_probe = {'at': 0, 'result': None}
+
     @app.get('/health')
     def health():
-        return {'status':'ok','demo':config.DEMO_MODE,'database':'postgresql' if config.CLOUD_DB else 'sqlite','visual_ai':'manual' if config.IS_VERCEL else 'local','gemini_configured':bool(config.GEMINI_API_KEY) or bool(__import__('os').getenv('TANGGUH_GATEWAY')=='1' and __import__('os').getenv('VERCEL_OIDC_TOKEN'))}
+        token = request.headers.get('x-vercel-oidc-token') if config.IS_VERCEL else None
+        status = {'status':'ok','demo':config.DEMO_MODE,'database':'postgresql' if config.CLOUD_DB else 'sqlite','visual_ai':'manual' if config.IS_VERCEL else 'local','gemini_configured':bool(config.GEMINI_API_KEY) or bool(os.getenv('TANGGUH_GATEWAY')=='1' and (token or os.getenv('VERCEL_OIDC_TOKEN')))}
+        # Smoke check only in protected synthetic preview; cached per instance.
+        if config.DEMO_MODE and request.args.get('check')=='llm':
+            if gateway_probe['result'] is None or time.monotonic()-gateway_probe['at']>300:
+                result=llm.summarize(llm.build_facts(db.list_reports()),oidc_token=token)
+                gateway_probe.update(at=time.monotonic(),result={'source':result['source'],'note':result['note']})
+            status['llm_probe']=gateway_probe['result']
+        return status
 
     # ---------------------------------------------------------------- Decorator Autentikasi
     def login_required(f):
@@ -712,7 +724,7 @@ def create_app():
     @app.route("/ringkasan", methods=["GET", "POST"])
     def summary():
         facts = llm.build_facts(db.list_reports())
-        result = llm.summarize(facts) if request.method == "POST" else None
+        result = llm.summarize(facts, oidc_token=request.headers.get("x-vercel-oidc-token") if config.IS_VERCEL else None) if request.method == "POST" else None
         return render_template("summary.html", facts=facts, result=result, kab=KABUPATEN)
 
     @app.get("/panduan")

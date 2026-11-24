@@ -22,7 +22,9 @@ from flask import (
 )
 from werkzeug.utils import secure_filename
 
-from tangguh import config, db, llm, rules, cloud_db
+from tangguh import config, db, llm, rules, cloud_db, demo_state
+import re
+from flask import g
 from tangguh.ml import predict
 
 ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp"}
@@ -112,27 +114,47 @@ def create_app():
             return None
         if request.endpoint not in {'home','login','static','health'} and not session.get('user_id'):
             return redirect(url_for('login'))
+        if config.DEMO_MODE and request.endpoint not in {'static','health'}:
+            demo_state.open_workspace()
         if request.method == 'POST':
             origin = request.headers.get('Origin') or request.headers.get('Referer') or ''
             if urlsplit(origin).netloc != request.host:
                 abort(403)
-            if config.DEMO_MODE and request.endpoint not in {'login','summary','logout'}:
-                return 'Preview data sintetis bersifat baca-saja. Penyimpanan permanen belum dikonfigurasi.', 403
+            if config.DEMO_MODE and request.endpoint == 'change_password':
+                return 'Sandi demo tidak dapat diubah.', 403
+
+    @app.teardown_request
+    def cleanup_demo(error):
+        if config.DEMO_MODE:
+            demo_state.close_workspace()
 
     @app.after_request
     def no_cache(response):
+        if config.DEMO_MODE and getattr(g,'demo_db',None) is not None:
+            try:
+                token=demo_state.encode_workspace()
+                if token:
+                    session['demo_workspace']=token
+                else:
+                    session.pop('demo_workspace',None)
+            except ValueError as exc:
+                return app.make_response((str(exc),409,{'Cache-Control':'no-store'}))
         if config.IS_VERCEL and request.endpoint != 'static':
             response.headers['Cache-Control']='no-store'
         return response
 
     gateway_probe = {'at': 0, 'result': None}
 
+    @app.errorhandler(413)
+    def upload_too_large(error):
+        return 'Ukuran kiriman terlalu besar. Pilih foto yang lebih kecil atau muat ulang formulir untuk kompresi otomatis.',413
+
     @app.get('/health')
     def health():
         token = request.headers.get('x-vercel-oidc-token') if config.IS_VERCEL else None
         status = {'status':'ok','demo':config.DEMO_MODE,'database':'postgresql' if config.CLOUD_DB else 'sqlite','visual_ai':'manual' if config.IS_VERCEL else 'local','gemini_configured':bool(config.GEMINI_API_KEY) or bool(os.getenv('TANGGUH_GATEWAY')=='1' and (token or os.getenv('VERCEL_OIDC_TOKEN')))}
         # Smoke check only in protected synthetic preview; cached per instance.
-        if config.DEMO_MODE and request.args.get('check')=='llm':
+        if config.DEMO_MODE and session.get('role')=='admin' and request.args.get('check')=='llm':
             if gateway_probe['result'] is None or time.monotonic()-gateway_probe['at']>300:
                 result=llm.summarize(llm.build_facts(db.list_reports()),oidc_token=token)
                 gateway_probe.update(at=time.monotonic(),result={'source':result['source'],'note':result['note']})
@@ -396,6 +418,13 @@ def create_app():
         """Kembalikan (nama_file, pesan_error). Foto draft lama dipertahankan bila tidak ada foto baru."""
         foto_name = draft.get("foto") if draft else None
         file = request.files.get("foto")
+        if config.DEMO_MODE:
+            marker = request.form.get('demo_photo','')
+            if marker and re.fullmatch(r'demo-[a-f0-9]{64}\.jpg',marker):
+                return marker,None
+            if file and file.filename:
+                return foto_name,'Foto demo harus diproses di browser. Muat ulang halaman dan coba lagi.'
+            return foto_name,None
         if file and file.filename:
             ext = Path(file.filename).suffix.lower()
             if ext not in ALLOWED_EXT:
@@ -424,6 +453,12 @@ def create_app():
             return render_template("input.html", f=f)
 
         f = {k: (request.form.get(k) or "").strip() for k in FIELDS}
+        if config.DEMO_MODE:
+            if any(len(v)> (400 if k=="deskripsi" else 80) for k,v in f.items()):
+                return "Isian demo terlalu panjang. Deskripsi maksimal 400 karakter; kolom lain maksimal 80.",400
+            if not request.form.get("demo_consent"):
+                flash("Konfirmasi data fiktif sebelum menyimpan.", "error")
+                return render_template("input.html", f={**f,"draft_id":did or "","foto":draft.get("foto") if draft else None}),400
 
         # Normalisasi dua arah data alamat nasional dan lama
         if not f.get("desa") and f.get("nagari"):

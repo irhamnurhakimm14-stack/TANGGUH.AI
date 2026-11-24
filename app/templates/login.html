@@ -29,7 +29,7 @@
       </div>
     </form>
 
-    <div class="demo-box" style="margin-top:18px">
+    {% if show_demo_accounts %}<div class="demo-box" style="margin-top:18px">
       <h4 style="margin:0 0 8px;font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.05em">Akun Pengujian (Demo):</h4>
       <div class="demo-grid">
         <div class="demo-card" onclick="fillAccount('admin', 'admin123')">
@@ -47,6 +47,7 @@
         Klik kartu akun di atas untuk mengisi formulir otomatis.
       </p>
     </div>
+    {% endif %}
   </div>
 </div>
 
